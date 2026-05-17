@@ -40,12 +40,22 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
 
     public abstract void generate(Player p);
 
-
     public void analyzeCommand(Player p, String[] args) {
-        sendHelp(p, args);
+        if (isHelpCommand(args)) {
+            sendHelp(p);
+            return;
+        }
+
         addPlayerSetting(p);
         convertArgsToSettings(p, args);
         generate(p);
+    }
+
+    private boolean isHelpCommand(String[] args) {
+        return args.length == 2
+                && (args[1].equalsIgnoreCase("info")
+                || args[1].equalsIgnoreCase("help")
+                || args[1].equalsIgnoreCase("?"));
     }
 
     public void addPlayerSetting(UUID uuid, Settings settings) {
@@ -73,7 +83,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
     }
 
     public void sendHelp(Player p, String @NonNull [] args) {
-        if (args.length == 2 && (args[1].equals("info") || args[1].equals("help") || args[1].equals("?")))
+        if (isHelpCommand(args))
             sendHelp(p);
     }
 
@@ -88,7 +98,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
     }
 
     public void sendError(Player p) {
-        p.sendMessage("§cThere was an error while generating the house. Please contact the admins");
+        p.sendMessage("§cThere was an error while generating the " + generatorType.getName().toLowerCase() + ". Please contact the admins.");
     }
 
     public String getCommand(@NonNull Player p) {
@@ -97,7 +107,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         String type = switch (generatorType) {
             case HOUSE -> "house";
             case ROAD -> "road";
-            case RAILWAY -> "railway";
+            case RAILWAY -> "rail";
             case TREE -> "tree";
             case FIELD -> "field";
         };
@@ -119,8 +129,11 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
                 .clickEvent(ClickEvent.runCommand("/gen undo"))
                 .hoverEvent(HoverEvent.showText(Component.text("Click to undo last generation", NamedTextColor.GRAY)));
 
-        TextComponent message =
-                getMessage().append(Component.text(" ")).append(copyCommand).append(Component.text(" ")).append(undo);
+        TextComponent message = getMessage()
+                .append(Component.text(" "))
+                .append(copyCommand)
+                .append(Component.text(" "))
+                .append(undo);
 
         p.sendMessage(message);
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
@@ -130,36 +143,31 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         String type = switch (generatorType) {
             case HOUSE -> "House";
             case ROAD -> "Road";
-            case RAILWAY -> "Railway";
+            case RAILWAY -> "Rail";
             case TREE -> "Tree";
             case FIELD -> "Field";
         };
 
-        return LegacyComponentSerializer.legacyAmpersand().deserialize(BuildTeamTools.PREFIX + type + "§a successfully " +
-                "§7generated.");
+        return LegacyComponentSerializer.legacyAmpersand()
+                .deserialize(BuildTeamTools.PREFIX + type + "§a successfully §7generated.");
     }
 
-    /**
-     * Conversion:
-     * Command: /gen house -w 123:12 -r 456:78
-     * args: ["-w", "123:12", "-r", "456:78"]
-     * HouseSettings:
-     * WALL_COLOR: 123:12
-     * ROOF_TYPE:  456:78
-     */
     protected void convertArgsToSettings(Player p, String[] args) {
         for (String flag : GeneratorUtils.convertArgsToFlags(args)) {
             String[] flagAndValue = GeneratorUtils.convertToFlagAndValue(flag, p);
 
-            if (flagAndValue == null) continue;
+            if (flagAndValue == null)
+                continue;
 
             String flagName = flagAndValue[0];
 
-            if (flagName == null) continue;
+            if (flagName == null)
+                continue;
 
             Flag finalFlag = Flag.byString(generatorType, flagName);
 
-            if (finalFlag == null) continue;
+            if (finalFlag == null)
+                continue;
 
             Object flagValue = FlagType.convertToFlagType(finalFlag, flagAndValue[1]);
 
