@@ -13,12 +13,14 @@ import com.sk89q.worldedit.world.block.BlockTypes;
 import lombok.Getter;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
+import net.buildtheearth.buildteamtools.modules.generator.listeners.GeneratorListener;
 import net.buildtheearth.buildteamtools.utils.MenuItems;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
@@ -84,9 +86,7 @@ public class Command {
         minMax = GeneratorUtils.getMinMaxPoints(getRegion());
     }
 
-    /**
-     * Processes the commands from the command queue to prevent the server from freezing.
-     */
+    /** Processes the commands from the command queue to prevent the server from freezing. */
     public void tick() {
         if (operations.isEmpty()) {
             if (!isFinished)
@@ -104,15 +104,13 @@ public class Command {
         if (threadActive)
             return;
 
-
         // Process commands in batches of MAX_COMMANDS_PER_SERVER_TICK
-        for (int i = 0; i < MAX_COMMANDS_PER_SERVER_TICK; ) {
+        for (int i = 0; i < MAX_COMMANDS_PER_SERVER_TICK;) {
             if (operations.isEmpty()) {
                 if (!isFinished)
                     finish();
                 break;
             }
-
 
             Operation command = operations.get(0);
             processOperation(command);
@@ -123,6 +121,7 @@ public class Command {
             // Skip WorldEdit commands that take no time to execute
             if (command.getOperationType() == Operation.OperationType.COMMAND) {
                 String commandString = (String) command.getValues().get(0);
+
                 if (commandString.startsWith("//gmask")
                         || commandString.startsWith("//mask")
                         || commandString.startsWith("//pos")
@@ -135,9 +134,7 @@ public class Command {
         }
     }
 
-    /**
-     * Processes a single command.
-     */
+    /** Processes a single command. */
     public void processOperation(Operation operation) {
         CompletableFuture<Void> future = null;
 
@@ -149,7 +146,7 @@ public class Command {
                     if (command.contains("%%XYZ/"))
                         command = convertXYZ(command);
 
-                    player.chat(command);
+                    runInternalGeneratorCommand(command);
                     break;
 
                 case BREAKPOINT:
@@ -234,29 +231,47 @@ public class Command {
                 ChatHelper.logError("Error while processing command: " + operation.getOperationType() + " - " + operation.getValuesAsString());
             else
                 ChatHelper.logError("Error while processing command.");
-            BuildTeamTools.getInstance().getComponentLogger().error("Command processing error", e);
+
+            e.printStackTrace();
         }
 
         if (future != null) {
             threadActive = true;
+
             // Ensure we clear threadActive and remove the operation regardless of success or exception
             future.whenComplete((v, ex) -> {
                 threadActive = false;
+
                 if (ex != null) {
                     ChatHelper.logError("Async operation failed: " + operation.getOperationType() + " - " + operation.getValuesAsString());
                     BuildTeamTools.getInstance().getComponentLogger().error("Async operation failed", ex);
                 }
+
                 // Remove the processed operation from the queue
                 operations.removeFirst();
             });
-
-        } else if (!breakPointActive)
-            operations.removeFirst();
+        } else if (!breakPointActive) {
+            operations.remove(0);
+        }
     }
 
-    /**
-     * Converts the XYZ coordinates in a command to the highest block at that location while skipping certain blocks.
-     */
+    private void runInternalGeneratorCommand(String command) {
+        player.setMetadata(
+                GeneratorListener.INTERNAL_GENERATOR_COMMAND_METADATA,
+                new FixedMetadataValue(BuildTeamTools.getInstance(), true)
+        );
+
+        try {
+            player.chat(command);
+        } finally {
+            player.removeMetadata(
+                    GeneratorListener.INTERNAL_GENERATOR_COMMAND_METADATA,
+                    BuildTeamTools.getInstance()
+            );
+        }
+    }
+
+    /** Converts the XYZ coordinates in a command to the highest block at that location while skipping certain blocks. */
     public String convertXYZ(String command) {
         String xyz = command.split("%%XYZ/")[1].split("/%%")[0];
 
@@ -269,20 +284,19 @@ public class Command {
 
         if (blocks != null)
             maxHeight = GeneratorUtils.getMaxHeight(blocks, x, z, MenuItems.getIgnoredMaterials());
+
         if (maxHeight == 0)
             maxHeight = y;
 
         String commandSuffix = "";
+
         if (command.split("/%%").length > 1)
             commandSuffix = command.split("/%%")[1];
 
         return command.split("%%XYZ/")[0] + x + "," + maxHeight + "," + z + commandSuffix;
     }
 
-
-    /**
-     * Called when the command queue is finished.
-     */
+    /** Called when the command queue is finished. */
     public void finish() {
         player.sendActionBar("§a§lGenerator Progress: §7100%");
         isFinished = true;

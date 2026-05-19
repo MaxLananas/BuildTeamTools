@@ -13,13 +13,19 @@ import org.bukkit.event.player.PlayerInteractEvent;
 
 public class GeneratorListener implements Listener {
 
+    public static final String INTERNAL_GENERATOR_COMMAND_METADATA = "btt-internal-generator-command";
+
     @EventHandler
     public void onCommand(PlayerCommandPreprocessEvent e) {
         Player p = e.getPlayer();
 
         if (!GeneratorModule.getInstance().isGenerating(p))
             return;
+
         if (!e.getMessage().startsWith("//"))
+            return;
+
+        if (p.hasMetadata(INTERNAL_GENERATOR_COMMAND_METADATA))
             return;
 
         e.setCancelled(true);
@@ -33,8 +39,10 @@ public class GeneratorListener implements Listener {
 
         if (!GeneratorModule.getInstance().isGenerating(p))
             return;
+
         if (e.getItem() == null)
             return;
+
         if (e.getItem().getType() != Material.WOODEN_AXE)
             return;
 
