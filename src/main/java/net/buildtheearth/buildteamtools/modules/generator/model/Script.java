@@ -251,6 +251,18 @@ public class Script {
         replaceBlocks(new BlockState[]{from}, new BlockState[]{to});
     }
 
+    public void setBlockStatesAtPositions(List<Vector> positions, List<BlockState> blockStates) {
+        if (positions.size() != blockStates.size())
+            throw new IllegalArgumentException("Position and BlockState lists must have the same size");
+
+        operations.add(new Operation(
+                Operation.OperationType.SET_BLOCKSTATES_AT_POSITIONS,
+                positions.toArray(new Vector[0]),
+                blockStates.toArray(new BlockState[0])
+        ));
+        changes++;
+    }
+
     /**
      * Set blocks with a mask.
      * It creates a new Operation with type SET_BLOCKS_WITH_EXPRESSION_MASK and adds it to the list of operations to execute.

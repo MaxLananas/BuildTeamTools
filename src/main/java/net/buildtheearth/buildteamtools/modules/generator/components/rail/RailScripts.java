@@ -3,31 +3,34 @@ package net.buildtheearth.buildteamtools.modules.generator.components.rail;
 import com.alpsbte.alpslib.utils.GeneratorUtils;
 import com.cryptomorin.xseries.XMaterial;
 import com.fastasyncworldedit.core.registry.state.PropertyKey;
-import com.sk89q.worldedit.math.BlockVector2;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.regions.ConvexPolyhedralRegion;
-import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.regions.Polygonal2DRegion;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorComponent;
 import net.buildtheearth.buildteamtools.modules.generator.model.Script;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class RailScripts extends Script {
 
     private static final int MAX_CONTROL_POINTS = 250;
     private static final int MAX_PATH_POINTS = 20_000;
     private static final int MAX_BLOCK_PLACEMENTS = 100_000;
+    private static final int SELECTION_PADDING = 4;
+    private static final int SELECTION_VERTICAL_PADDING = 12;
+    private static final int PREPARE_SELECTION_EXPANSION = 8;
+    private static final int INVALID_SIDE_PAIR_PENALTY = 1_000_000;
+    private static final int CENTER_COLLISION_PENALTY = 100_000;
+    private static final int FALLBACK_SIDE_PAIR_PENALTY = 1_000;
 
     private static final XMaterial[] CENTER_MATERIALS = new XMaterial[]{
             XMaterial.DEAD_FIRE_CORAL_BLOCK,
@@ -37,8 +40,10 @@ public class RailScripts extends Script {
 
     private final List<Vector> customControlPoints;
 
-    private List<Vector> controlPoints;
-    private List<Vector> centerPath;
+    private Block[][][] blocks;
+    private List<Vector> controlPoints = new ArrayList<>();
+    private List<Vector> centerPath = new ArrayList<>();
+    private List<Vector> railSelectionPoints = new ArrayList<>();
 
     public RailScripts(Player player, GeneratorComponent generatorComponent) {
         this(player, generatorComponent, null);
@@ -48,24 +53,45 @@ public class RailScripts extends Script {
         super(player, generatorComponent);
         this.customControlPoints = customControlPoints;
 
-        Thread thread = new Thread(this::railScript_v_1_0);
+        Thread thread = new Thread(() -> {
+            prepareSession();
+            railScript_v_2_0();
+        });
         thread.start();
     }
 
-    private void railScript_v_1_0() {
-        controlPoints = getControlPoints();
+    private void prepareSession() {
+        controlPoints = sanitizePoints(getControlPoints());
 
-        if (controlPoints.size() < 2) {
-            getPlayer().sendMessage("§cRail Generator needs at least two points.");
+        if (!hasValidControlPoints())
             return;
-        }
 
-        if (controlPoints.size() > MAX_CONTROL_POINTS) {
-            getPlayer().sendMessage("§cRail Generator has too many points. Please use fewer points.");
+        railSelectionPoints = createRailSelectionPoints(controlPoints);
+        GeneratorUtils.createPolySelection(
+                getPlayer(),
+                railSelectionPoints,
+                getSelectionMinY(controlPoints),
+                getSelectionMaxY(controlPoints)
+        );
+
+        blocks = GeneratorUtils.prepareScriptSession(
+                localSession,
+                actor,
+                getPlayer(),
+                weWorld,
+                PREPARE_SELECTION_EXPANSION,
+                true,
+                false,
+                false
+        );
+
+        snapMissingControlPointHeightsToTerrain(controlPoints);
+        centerPath = createShortestPath(controlPoints);
+    }
+
+    private void railScript_v_2_0() {
+        if (!hasValidControlPoints())
             return;
-        }
-
-        centerPath = createEightDirectionalPath(controlPoints);
 
         if (centerPath.size() < 2) {
             getPlayer().sendMessage("§cRail Generator could not create a valid rail path.");
@@ -77,44 +103,966 @@ public class RailScripts extends Script {
             return;
         }
 
-        Map<PositionKey, RailSideBlock> sideBlocks = buildSideBlocks(centerPath);
-        Map<PositionKey, BlockState> blocksToPlace = buildBlockMap(centerPath, sideBlocks);
+        Map<PositionKey, BlockState> railBlocks = buildRailBlocks(centerPath);
 
-        if (blocksToPlace.size() > MAX_BLOCK_PLACEMENTS) {
+        if (railBlocks.size() > MAX_BLOCK_PLACEMENTS) {
             getPlayer().sendMessage("§cRail Generator would place too many blocks. Please use a smaller selection.");
             return;
         }
 
-        for (Map.Entry<PositionKey, BlockState> entry : blocksToPlace.entrySet()) {
-            PositionKey key = entry.getKey();
-            BlockState blockState = entry.getValue();
+        setBlockStatesAtPositions(
+                railBlocks.keySet().stream().map(PositionKey::toVector).toList(),
+                new ArrayList<>(railBlocks.values())
+        );
 
-            if (blockState == null)
-                continue;
+        finish(blocks, getRestoreSelectionPoints());
+    }
 
-            Vector position = key.toVector();
-
-            createCuboidSelection(position, position);
-            replaceBlocks((BlockState[]) null, blockState);
+    private boolean hasValidControlPoints() {
+        if (controlPoints.size() < 2) {
+            getPlayer().sendMessage("§cRail Generator needs at least two points.");
+            return false;
         }
 
-        finish(null, getCuboidRestoreSelection());
+        if (controlPoints.size() > MAX_CONTROL_POINTS) {
+            getPlayer().sendMessage("§cRail Generator has too many points. Please use fewer points.");
+            return false;
+        }
+
+        return true;
     }
 
     private List<Vector> getControlPoints() {
         if (customControlPoints != null && customControlPoints.size() >= 2)
             return copyPoints(customControlPoints);
 
-        if (getRegion() instanceof CuboidRegion cuboidRegion)
-            return getCuboidControlPoints(cuboidRegion);
+        List<Vector> selectionPoints = GeneratorUtils.getSelectionPointsFromRegion(getRegion());
 
-        if (getRegion() instanceof ConvexPolyhedralRegion convexRegion)
-            return getConvexControlPoints(convexRegion);
+        if (selectionPoints == null)
+            return Collections.emptyList();
 
-        if (getRegion() instanceof Polygonal2DRegion polygonalRegion)
-            return getPolygonalControlPoints(polygonalRegion);
+        return copyPoints(selectionPoints);
+    }
 
-        return new ArrayList<>(GeneratorUtils.getSelectionPointsFromRegion(getRegion()));
+    private List<Vector> createRailSelectionPoints(List<Vector> points) {
+        List<Vector> selectionLine = new ArrayList<>(points);
+
+        if (selectionLine.size() >= 2)
+            selectionLine = GeneratorUtils.extendPolyLine(selectionLine);
+
+        List<Vector> shiftedPoints = GeneratorUtils.shiftPoints(selectionLine, SELECTION_PADDING, true);
+
+        if (shiftedPoints == null || shiftedPoints.size() < 3)
+            return createBoundsSelectionPoints(points);
+
+        return shiftedPoints;
+    }
+
+    private List<Vector> createShortestPath(List<Vector> points) {
+        List<Vector> path = new ArrayList<>();
+
+        if (points.isEmpty())
+            return path;
+
+        addPointIfNew(path, points.get(0));
+
+        for (int index = 0; index < points.size() - 1; index++)
+            appendShortestLine(path, points.get(index), points.get(index + 1));
+
+        return path;
+    }
+
+    private void appendShortestLine(List<Vector> path, Vector start, Vector end) {
+        int startX = start.getBlockX();
+        int startY = start.getBlockY();
+        int startZ = start.getBlockZ();
+        int deltaX = end.getBlockX() - startX;
+        int deltaY = end.getBlockY() - startY;
+        int deltaZ = end.getBlockZ() - startZ;
+
+        int horizontalSteps = Math.max(Math.abs(deltaX), Math.abs(deltaZ));
+
+        if (horizontalSteps == 0) {
+            replaceLastPoint(path, end);
+            return;
+        }
+
+        for (int step = 1; step <= horizontalSteps; step++) {
+            double progress = step / (double) horizontalSteps;
+            addPointIfNew(path, new Vector(
+                    startX + (int) Math.round(deltaX * progress),
+                    startY + (int) Math.round(deltaY * progress),
+                    startZ + (int) Math.round(deltaZ * progress)
+            ));
+        }
+    }
+
+    private Map<PositionKey, BlockState> buildRailBlocks(List<Vector> path) {
+        Map<PositionKey, BlockState> blockMap = new LinkedHashMap<>();
+        Set<PositionKey> centerPositions = getCenterPositions(path);
+        Set<ColumnKey> centerColumns = getCenterColumns(path);
+        Map<PositionKey, RailSideBlock> sideBlocks = buildSideBlocks(path, centerPositions, centerColumns);
+
+        for (RailSideBlock sideBlock : sideBlocks.values()) {
+            if (centerColumns.contains(ColumnKey.from(sideBlock.key())))
+                continue;
+
+            blockMap.put(sideBlock.key(), createAnvilBlockState(resolveSideBlockFacing(sideBlock, sideBlocks)));
+        }
+
+        for (Vector center : path)
+            blockMap.put(PositionKey.from(center), createCenterBlockState(center));
+
+        return blockMap;
+    }
+
+    private List<RailSidePair> buildSidePairs(List<Vector> path, Set<PositionKey> centerPositions) {
+        List<RailSidePair> sidePairs = new ArrayList<>();
+        RailSidePair previousPair = null;
+
+        for (int index = 0; index < path.size(); index++) {
+            List<RailSidePair> candidates = getSidePairCandidates(path, centerPositions, index);
+            RailSidePair selectedPair = selectSidePair(previousPair, candidates, centerPositions);
+
+            sidePairs.add(selectedPair);
+            previousPair = selectedPair;
+        }
+
+        return sidePairs;
+    }
+
+    private List<RailSidePair> getSidePairCandidates(
+            List<Vector> path,
+            Set<PositionKey> centerPositions,
+            int index
+    ) {
+        List<RailSidePair> candidates = new ArrayList<>();
+        Vector center = path.get(index);
+        RailDirection previousDirection = getHorizontalDirection(path, index - 1, index);
+        RailDirection nextDirection = getHorizontalDirection(path, index, index + 1);
+
+        addSidePairIfNew(candidates, createSidePair(center, getRailDirection(path, index)));
+
+        if (previousDirection != null)
+            addSidePairIfNew(candidates, createSidePair(center, previousDirection));
+
+        if (nextDirection != null)
+            addSidePairIfNew(candidates, createSidePair(center, nextDirection));
+
+        if (previousDirection != null && nextDirection != null) {
+            addBlendedSidePair(candidates, center, previousDirection, nextDirection);
+            addCornerSidePairs(candidates, center, centerPositions, previousDirection, nextDirection);
+        }
+
+        addFallbackSidePairs(candidates, center, getRailDirection(path, index), centerPositions);
+
+        return candidates;
+    }
+
+    private RailSidePair selectSidePair(
+            RailSidePair previousPair,
+            List<RailSidePair> candidates,
+            Set<PositionKey> centerPositions
+    ) {
+        RailSidePair selectedPair = candidates.get(0);
+        int selectedScore = Integer.MAX_VALUE;
+
+        for (RailSidePair candidate : candidates) {
+            RailSidePair[] orientations = new RailSidePair[]{candidate, candidate.reversed()};
+
+            for (RailSidePair orientedCandidate : orientations) {
+                int score = getSidePairScore(previousPair, orientedCandidate, centerPositions);
+
+                if (score < selectedScore) {
+                    selectedScore = score;
+                    selectedPair = orientedCandidate;
+                }
+            }
+        }
+
+        return selectedPair;
+    }
+
+    private int getSidePairScore(
+            RailSidePair previousPair,
+            RailSidePair candidate,
+            Set<PositionKey> centerPositions
+    ) {
+        int score = getCenterCollisionPenalty(candidate, centerPositions);
+
+        if (previousPair != null)
+            score += getSidePairTransitionDistance(previousPair, candidate);
+
+        score += candidate.fallbackPenalty();
+
+        return score;
+    }
+
+    private int getCenterCollisionPenalty(RailSidePair candidate, Set<PositionKey> centerPositions) {
+        if (candidate.hasDuplicatePosition())
+            return INVALID_SIDE_PAIR_PENALTY;
+
+        int penalty = 0;
+
+        if (isCenterCollision(candidate.first(), centerPositions))
+            penalty += CENTER_COLLISION_PENALTY;
+
+        if (isCenterCollision(candidate.second(), centerPositions))
+            penalty += CENTER_COLLISION_PENALTY;
+
+        return penalty;
+    }
+
+    private boolean isCenterCollision(RailSidePlacement sidePlacement, Set<PositionKey> centerPositions) {
+        return centerPositions.contains(PositionKey.from(sidePlacement.position()));
+    }
+
+    private boolean isCenterColumnCollision(
+            PositionKey key,
+            Set<PositionKey> centerPositions,
+            Set<ColumnKey> centerColumns
+    ) {
+        return centerPositions.contains(key) || centerColumns.contains(ColumnKey.from(key));
+    }
+
+    private int getSidePairTransitionDistance(RailSidePair previousPair, RailSidePair candidate) {
+        return getChebyshevDistance(previousPair.first().position(), candidate.first().position())
+                + getChebyshevDistance(previousPair.second().position(), candidate.second().position());
+    }
+
+    private int getChebyshevDistance(Vector first, Vector second) {
+        return Math.max(
+                Math.max(
+                        Math.abs(second.getBlockX() - first.getBlockX()),
+                        Math.abs(second.getBlockY() - first.getBlockY())
+                ),
+                Math.abs(second.getBlockZ() - first.getBlockZ())
+        );
+    }
+
+    private Map<PositionKey, RailSideBlock> buildSideBlocks(
+            List<Vector> path,
+            Set<PositionKey> centerPositions,
+            Set<ColumnKey> centerColumns
+    ) {
+        Map<PositionKey, RailSideBlock> exactSideBlocks = new LinkedHashMap<>();
+
+        for (List<RailSidePlacement> sideLane : buildSideLanes(path)) {
+            for (RailSidePlacement sidePlacement : sideLane)
+                addExactSideBlock(exactSideBlocks, centerPositions, centerColumns, sidePlacement);
+        }
+
+        List<RailSidePair> sidePairs = buildSidePairs(path, centerPositions);
+
+        for (RailSidePair sidePair : sidePairs) {
+            addExactSideBlock(exactSideBlocks, centerPositions, centerColumns, sidePair.first());
+            addExactSideBlock(exactSideBlocks, centerPositions, centerColumns, sidePair.second());
+        }
+
+        Map<PositionKey, RailSideBlock> sideBlocks = selectBestSideBlockPerColumn(exactSideBlocks, centerPositions);
+        repairMissingSideBlocks(path, sidePairs, sideBlocks, centerPositions, centerColumns);
+
+        return sideBlocks;
+    }
+
+    private List<List<RailSidePlacement>> buildSideLanes(List<Vector> path) {
+        List<RailSidePlacement> firstLane = new ArrayList<>();
+        List<RailSidePlacement> secondLane = new ArrayList<>();
+
+        for (int index = 0; index < path.size() - 1; index++) {
+            RailDirection direction = getHorizontalDirection(path, index, index + 1);
+
+            if (direction == null)
+                continue;
+
+            RailSidePair startPair = createSidePair(path.get(index), direction);
+            RailSidePair endPair = createSidePair(path.get(index + 1), direction);
+
+            boolean reverseSegment = !firstLane.isEmpty() && shouldReverseSideSegment(firstLane, secondLane, startPair);
+
+            if (reverseSegment) {
+                startPair = startPair.reversed();
+                endPair = endPair.reversed();
+            }
+
+            appendSideLaneSegment(firstLane, startPair.first(), endPair.first());
+            appendSideLaneSegment(secondLane, startPair.second(), endPair.second());
+        }
+
+        return List.of(firstLane, secondLane);
+    }
+
+    private boolean shouldReverseSideSegment(
+            List<RailSidePlacement> firstLane,
+            List<RailSidePlacement> secondLane,
+            RailSidePair startPair
+    ) {
+        RailSidePlacement firstEnd = firstLane.get(firstLane.size() - 1);
+        RailSidePlacement secondEnd = secondLane.get(secondLane.size() - 1);
+        int normalDistance = getChebyshevDistance(firstEnd.position(), startPair.first().position())
+                + getChebyshevDistance(secondEnd.position(), startPair.second().position());
+        int reversedDistance = getChebyshevDistance(firstEnd.position(), startPair.second().position())
+                + getChebyshevDistance(secondEnd.position(), startPair.first().position());
+
+        return reversedDistance < normalDistance;
+    }
+
+    private void appendSideLaneSegment(
+            List<RailSidePlacement> lane,
+            RailSidePlacement start,
+            RailSidePlacement end
+    ) {
+        if (lane.isEmpty()) {
+            lane.add(start);
+        } else {
+            appendSideLine(lane, lane.get(lane.size() - 1), start);
+        }
+
+        appendSideLine(lane, lane.get(lane.size() - 1), end);
+    }
+
+    private void appendSideLine(
+            List<RailSidePlacement> lane,
+            RailSidePlacement start,
+            RailSidePlacement end
+    ) {
+        Vector startPosition = start.position();
+        Vector endPosition = end.position();
+        int deltaX = endPosition.getBlockX() - startPosition.getBlockX();
+        int deltaY = endPosition.getBlockY() - startPosition.getBlockY();
+        int deltaZ = endPosition.getBlockZ() - startPosition.getBlockZ();
+        int horizontalSteps = Math.max(Math.abs(deltaX), Math.abs(deltaZ));
+        Direction facing = getLineFacing(deltaX, deltaZ, end.facing());
+
+        if (horizontalSteps == 0) {
+            replaceLastSidePlacement(lane, new RailSidePlacement(endPosition, facing));
+            return;
+        }
+
+        for (int step = 1; step <= horizontalSteps; step++) {
+            double progress = step / (double) horizontalSteps;
+            addSidePlacementIfNew(lane, new RailSidePlacement(
+                    new Vector(
+                            startPosition.getBlockX() + (int) Math.round(deltaX * progress),
+                            startPosition.getBlockY() + (int) Math.round(deltaY * progress),
+                            startPosition.getBlockZ() + (int) Math.round(deltaZ * progress)
+                    ),
+                    facing
+            ));
+        }
+    }
+
+    private Direction getLineFacing(int deltaX, int deltaZ, Direction fallbackFacing) {
+        if (Math.abs(deltaX) > Math.abs(deltaZ))
+            return getXFacing(deltaX);
+
+        if (Math.abs(deltaZ) > Math.abs(deltaX))
+            return getZFacing(deltaZ);
+
+        return fallbackFacing;
+    }
+
+    private void addSidePlacementIfNew(List<RailSidePlacement> lane, RailSidePlacement sidePlacement) {
+        if (lane.isEmpty() || !isSameBlock(lane.get(lane.size() - 1).position(), sidePlacement.position()))
+            lane.add(sidePlacement);
+    }
+
+    private void replaceLastSidePlacement(List<RailSidePlacement> lane, RailSidePlacement sidePlacement) {
+        if (lane.isEmpty()) {
+            lane.add(sidePlacement);
+            return;
+        }
+
+        lane.set(lane.size() - 1, sidePlacement);
+    }
+
+    private void addExactSideBlock(
+            Map<PositionKey, RailSideBlock> sideBlocks,
+            Set<PositionKey> centerPositions,
+            Set<ColumnKey> centerColumns,
+            RailSidePlacement sidePlacement
+    ) {
+        PositionKey key = PositionKey.from(sidePlacement.position());
+
+        if (isCenterColumnCollision(key, centerPositions, centerColumns))
+            return;
+
+        sideBlocks
+                .computeIfAbsent(key, ignored -> new RailSideBlock(key))
+                .addFacing(sidePlacement.facing());
+    }
+
+    private Map<PositionKey, RailSideBlock> selectBestSideBlockPerColumn(
+            Map<PositionKey, RailSideBlock> exactSideBlocks,
+            Set<PositionKey> centerPositions
+    ) {
+        Map<ColumnKey, RailSideBlock> selectedColumns = new LinkedHashMap<>();
+
+        for (RailSideBlock sideBlock : exactSideBlocks.values()) {
+            ColumnKey columnKey = ColumnKey.from(sideBlock.key());
+            RailSideBlock selectedBlock = selectedColumns.get(columnKey);
+
+            if (selectedBlock == null
+                    || getSideBlockCoverageScore(sideBlock.key(), centerPositions) > getSideBlockCoverageScore(selectedBlock.key(), centerPositions)
+                    || getSideBlockCoverageScore(sideBlock.key(), centerPositions) == getSideBlockCoverageScore(selectedBlock.key(), centerPositions)
+                    && sideBlock.getSupportScore() > selectedBlock.getSupportScore())
+                selectedColumns.put(columnKey, sideBlock);
+        }
+
+        Map<PositionKey, RailSideBlock> sideBlocks = new LinkedHashMap<>();
+
+        for (RailSideBlock sideBlock : selectedColumns.values())
+            sideBlocks.put(sideBlock.key(), sideBlock);
+
+        return sideBlocks;
+    }
+
+    private int getSideBlockCoverageScore(PositionKey sideBlockKey, Set<PositionKey> centerPositions) {
+        int score = 0;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0)
+                    continue;
+
+                if (centerPositions.contains(PositionKey.of(
+                        sideBlockKey.x() + dx,
+                        sideBlockKey.y(),
+                        sideBlockKey.z() + dz
+                )))
+                    score++;
+            }
+        }
+
+        return score;
+    }
+
+    private void repairMissingSideBlocks(
+            List<Vector> path,
+            List<RailSidePair> sidePairs,
+            Map<PositionKey, RailSideBlock> sideBlocks,
+            Set<PositionKey> centerPositions,
+            Set<ColumnKey> centerColumns
+    ) {
+        Map<ColumnKey, RailSideBlock> sideColumns = createSideColumnMap(sideBlocks);
+
+        for (int index = 0; index < path.size(); index++) {
+            Vector center = path.get(index);
+            int sideBlockCount = getAdjacentSideBlockCount(center, sideBlocks);
+
+            if (sideBlockCount >= 2)
+                continue;
+
+            sideBlockCount = repairSidePlacement(
+                    sidePairs.get(index).first(),
+                    sideBlocks,
+                    sideColumns,
+                    centerPositions,
+                    centerColumns,
+                    sideBlockCount
+            );
+
+            if (sideBlockCount >= 2)
+                continue;
+
+            sideBlockCount = repairSidePlacement(
+                    sidePairs.get(index).second(),
+                    sideBlocks,
+                    sideColumns,
+                    centerPositions,
+                    centerColumns,
+                    sideBlockCount
+            );
+
+            if (sideBlockCount >= 2)
+                continue;
+
+            for (RailSidePlacement sidePlacement : getFallbackSidePlacements(
+                    center,
+                    getRailDirection(path, index),
+                    centerPositions,
+                    centerColumns
+            )) {
+                sideBlockCount = repairSidePlacement(
+                        sidePlacement,
+                        sideBlocks,
+                        sideColumns,
+                        centerPositions,
+                        centerColumns,
+                        sideBlockCount
+                );
+
+                if (sideBlockCount >= 2)
+                    break;
+            }
+        }
+    }
+
+    private int repairSidePlacement(
+            RailSidePlacement sidePlacement,
+            Map<PositionKey, RailSideBlock> sideBlocks,
+            Map<ColumnKey, RailSideBlock> sideColumns,
+            Set<PositionKey> centerPositions,
+            Set<ColumnKey> centerColumns,
+            int sideBlockCount
+    ) {
+        PositionKey key = PositionKey.from(sidePlacement.position());
+
+        if (isCenterColumnCollision(key, centerPositions, centerColumns))
+            return sideBlockCount;
+
+        if (sideBlocks.containsKey(key))
+            return sideBlockCount;
+
+        ColumnKey columnKey = ColumnKey.from(key);
+
+        RailSideBlock existingColumnBlock = sideColumns.get(columnKey);
+
+        if (existingColumnBlock != null) {
+            if (!canReplaceSideBlock(existingColumnBlock.key(), centerPositions, sideBlocks))
+                return sideBlockCount;
+
+            sideBlocks.remove(existingColumnBlock.key());
+        }
+
+        RailSideBlock sideBlock = new RailSideBlock(key);
+        sideBlock.addFacing(sidePlacement.facing());
+        sideBlocks.put(key, sideBlock);
+        sideColumns.put(columnKey, sideBlock);
+        return sideBlockCount + 1;
+    }
+
+    private boolean canReplaceSideBlock(
+            PositionKey sideBlockKey,
+            Set<PositionKey> centerPositions,
+            Map<PositionKey, RailSideBlock> sideBlocks
+    ) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0)
+                    continue;
+
+                PositionKey centerKey = PositionKey.of(
+                        sideBlockKey.x() + dx,
+                        sideBlockKey.y(),
+                        sideBlockKey.z() + dz
+                );
+
+                if (!centerPositions.contains(centerKey))
+                    continue;
+
+                if (getAdjacentSideBlockCount(centerKey.toVector(), sideBlocks) <= 2)
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private int getAdjacentSideBlockCount(Vector center, Map<PositionKey, RailSideBlock> sideBlocks) {
+        int count = 0;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0)
+                    continue;
+
+                if (sideBlocks.containsKey(PositionKey.of(
+                        center.getBlockX() + dx,
+                        center.getBlockY(),
+                        center.getBlockZ() + dz
+                )))
+                    count++;
+            }
+        }
+
+        return count;
+    }
+
+    private boolean isAdjacentOnSameHeight(Vector center, PositionKey key) {
+        if (key.y() != center.getBlockY())
+            return false;
+
+        int dx = Math.abs(key.x() - center.getBlockX());
+        int dz = Math.abs(key.z() - center.getBlockZ());
+
+        return dx <= 1 && dz <= 1 && (dx != 0 || dz != 0);
+    }
+
+    private Map<ColumnKey, RailSideBlock> createSideColumnMap(Map<PositionKey, RailSideBlock> sideBlocks) {
+        Map<ColumnKey, RailSideBlock> sideColumns = new LinkedHashMap<>();
+
+        for (RailSideBlock sideBlock : sideBlocks.values())
+            sideColumns.put(ColumnKey.from(sideBlock.key()), sideBlock);
+
+        return sideColumns;
+    }
+
+    private Direction resolveSideBlockFacing(
+            RailSideBlock sideBlock,
+            Map<PositionKey, RailSideBlock> sideBlocks
+    ) {
+        PositionKey key = sideBlock.key();
+        boolean east = sideBlocks.containsKey(PositionKey.of(key.x() + 1, key.y(), key.z()));
+        boolean west = sideBlocks.containsKey(PositionKey.of(key.x() - 1, key.y(), key.z()));
+        boolean south = sideBlocks.containsKey(PositionKey.of(key.x(), key.y(), key.z() + 1));
+        boolean north = sideBlocks.containsKey(PositionKey.of(key.x(), key.y(), key.z() - 1));
+        int xConnections = (east ? 1 : 0) + (west ? 1 : 0);
+        int zConnections = (south ? 1 : 0) + (north ? 1 : 0);
+        Direction preferredFacing = sideBlock.getPreferredFacing();
+
+        if (xConnections > zConnections)
+            return resolveXFacing(preferredFacing, east, west);
+
+        if (zConnections > xConnections)
+            return resolveZFacing(preferredFacing, south, north);
+
+        return preferredFacing;
+    }
+
+    private Direction resolveXFacing(Direction preferredFacing, boolean east, boolean west) {
+        if (preferredFacing == Direction.EAST && east)
+            return Direction.EAST;
+
+        if (preferredFacing == Direction.WEST && west)
+            return Direction.WEST;
+
+        if (east && !west)
+            return Direction.EAST;
+
+        if (west && !east)
+            return Direction.WEST;
+
+        return preferredFacing == Direction.WEST ? Direction.WEST : Direction.EAST;
+    }
+
+    private Direction resolveZFacing(Direction preferredFacing, boolean south, boolean north) {
+        if (preferredFacing == Direction.SOUTH && south)
+            return Direction.SOUTH;
+
+        if (preferredFacing == Direction.NORTH && north)
+            return Direction.NORTH;
+
+        if (south && !north)
+            return Direction.SOUTH;
+
+        if (north && !south)
+            return Direction.NORTH;
+
+        return preferredFacing == Direction.NORTH ? Direction.NORTH : Direction.SOUTH;
+    }
+
+    private Set<PositionKey> getCenterPositions(List<Vector> path) {
+        Set<PositionKey> centerPositions = new HashSet<>();
+
+        for (Vector center : path)
+            centerPositions.add(PositionKey.from(center));
+
+        return centerPositions;
+    }
+
+    private Set<ColumnKey> getCenterColumns(List<Vector> path) {
+        Set<ColumnKey> centerColumns = new HashSet<>();
+
+        for (Vector center : path)
+            centerColumns.add(ColumnKey.from(PositionKey.from(center)));
+
+        return centerColumns;
+    }
+
+    private void addBlendedSidePair(
+            List<RailSidePair> candidates,
+            Vector center,
+            RailDirection previousDirection,
+            RailDirection nextDirection
+    ) {
+        int blendedX = Integer.compare(previousDirection.dx() + nextDirection.dx(), 0);
+        int blendedZ = Integer.compare(previousDirection.dz() + nextDirection.dz(), 0);
+
+        if (blendedX == 0 && blendedZ == 0)
+            return;
+
+        addSidePairIfNew(candidates, createSidePair(center, new RailDirection(blendedX, blendedZ)));
+    }
+
+    private void addCornerSidePairs(
+            List<RailSidePair> candidates,
+            Vector center,
+            Set<PositionKey> centerPositions,
+            RailDirection previousDirection,
+            RailDirection nextDirection
+    ) {
+        RailSidePair previousPair = createSidePair(center, previousDirection);
+        RailSidePair nextPair = createSidePair(center, nextDirection);
+        RailSidePlacement[] previousPlacements = new RailSidePlacement[]{
+                previousPair.first(),
+                previousPair.second()
+        };
+        RailSidePlacement[] nextPlacements = new RailSidePlacement[]{
+                nextPair.first(),
+                nextPair.second()
+        };
+
+        for (RailSidePlacement previousPlacement : previousPlacements) {
+            for (RailSidePlacement nextPlacement : nextPlacements) {
+                if (isSameBlock(previousPlacement.position(), nextPlacement.position()))
+                    continue;
+
+                RailSidePair cornerPair = new RailSidePair(previousPlacement, nextPlacement, 0);
+
+                if (getCenterCollisionPenalty(cornerPair, centerPositions) == 0)
+                    addSidePairIfNew(candidates, cornerPair);
+            }
+        }
+    }
+
+    private void addFallbackSidePairs(
+            List<RailSidePair> candidates,
+            Vector center,
+            RailDirection direction,
+            Set<PositionKey> centerPositions
+    ) {
+        List<RailSidePlacement> placements = getFallbackSidePlacements(center, direction, centerPositions);
+
+        for (int firstIndex = 0; firstIndex < placements.size(); firstIndex++) {
+            for (int secondIndex = firstIndex + 1; secondIndex < placements.size(); secondIndex++) {
+                RailSidePlacement first = placements.get(firstIndex);
+                RailSidePlacement second = placements.get(secondIndex);
+                int separation = getChebyshevDistance(first.position(), second.position());
+
+                if (separation < 2)
+                    continue;
+
+                addSidePairIfNew(candidates, new RailSidePair(first, second, FALLBACK_SIDE_PAIR_PENALTY));
+            }
+        }
+    }
+
+    private List<RailSidePlacement> getFallbackSidePlacements(
+            Vector center,
+            RailDirection direction,
+            Set<PositionKey> centerPositions
+    ) {
+        return getFallbackSidePlacements(center, direction, centerPositions, Collections.emptySet());
+    }
+
+    private List<RailSidePlacement> getFallbackSidePlacements(
+            Vector center,
+            RailDirection direction,
+            Set<PositionKey> centerPositions,
+            Set<ColumnKey> centerColumns
+    ) {
+        List<RailSidePlacement> placements = new ArrayList<>();
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0)
+                    continue;
+
+                Vector position = new Vector(
+                        center.getBlockX() + dx,
+                        center.getBlockY(),
+                        center.getBlockZ() + dz
+                );
+
+                PositionKey key = PositionKey.from(position);
+
+                if (isCenterColumnCollision(key, centerPositions, centerColumns))
+                    continue;
+
+                placements.add(new RailSidePlacement(position, getFallbackFacing(dx, dz, direction)));
+            }
+        }
+
+        return placements;
+    }
+
+    private Direction getFallbackFacing(int offsetX, int offsetZ, RailDirection direction) {
+        if (Math.abs(direction.dx()) >= Math.abs(direction.dz()) && direction.dx() != 0)
+            return getXFacing(direction.dx());
+
+        if (direction.dz() != 0)
+            return getZFacing(direction.dz());
+
+        if (Math.abs(offsetX) >= Math.abs(offsetZ) && offsetX != 0)
+            return getXFacing(offsetX);
+
+        return getZFacing(offsetZ);
+    }
+
+    private RailSidePair createSidePair(Vector center, RailDirection direction) {
+        int x = center.getBlockX();
+        int y = center.getBlockY();
+        int z = center.getBlockZ();
+        int dx = direction.dx();
+        int dz = direction.dz();
+
+        if (dx != 0 && dz != 0)
+            return new RailSidePair(
+                    new RailSidePlacement(new Vector(x + dx, y, z), getZFacing(dz)),
+                    new RailSidePlacement(new Vector(x, y, z + dz), getXFacing(dx)),
+                    0
+            );
+
+        if (dx != 0)
+            return new RailSidePair(
+                    new RailSidePlacement(new Vector(x, y, z + 1), getXFacing(dx)),
+                    new RailSidePlacement(new Vector(x, y, z - 1), getXFacing(dx)),
+                    0
+            );
+
+        return new RailSidePair(
+                new RailSidePlacement(new Vector(x + 1, y, z), getZFacing(dz)),
+                new RailSidePlacement(new Vector(x - 1, y, z), getZFacing(dz)),
+                0
+        );
+    }
+
+    private void addSidePairIfNew(List<RailSidePair> candidates, RailSidePair sidePair) {
+        for (RailSidePair candidate : candidates) {
+            if (candidate.hasSamePositions(sidePair))
+                return;
+        }
+
+        candidates.add(sidePair);
+    }
+
+    private RailDirection getRailDirection(List<Vector> path, int index) {
+        RailDirection nextDirection = getHorizontalDirection(path, index, index + 1);
+        RailDirection previousDirection = getHorizontalDirection(path, index - 1, index);
+
+        if (nextDirection != null && previousDirection != null) {
+            if (nextDirection.equals(previousDirection))
+                return nextDirection;
+
+            int blendedX = Integer.compare(nextDirection.dx() + previousDirection.dx(), 0);
+            int blendedZ = Integer.compare(nextDirection.dz() + previousDirection.dz(), 0);
+
+            if (blendedX != 0 || blendedZ != 0)
+                return new RailDirection(blendedX, blendedZ);
+
+            return nextDirection;
+        }
+
+        if (nextDirection != null)
+            return nextDirection;
+
+        if (previousDirection != null)
+            return previousDirection;
+
+        for (int nextIndex = index + 1; nextIndex < path.size(); nextIndex++) {
+            RailDirection direction = getHorizontalDirection(path, index, nextIndex);
+
+            if (direction != null)
+                return direction;
+        }
+
+        for (int previousIndex = index - 1; previousIndex >= 0; previousIndex--) {
+            RailDirection direction = getHorizontalDirection(path, previousIndex, index);
+
+            if (direction != null)
+                return direction;
+        }
+
+        return new RailDirection(1, 0);
+    }
+
+    private RailDirection getHorizontalDirection(List<Vector> path, int fromIndex, int toIndex) {
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= path.size() || toIndex >= path.size())
+            return null;
+
+        Vector from = path.get(fromIndex);
+        Vector to = path.get(toIndex);
+        int dx = Integer.compare(to.getBlockX() - from.getBlockX(), 0);
+        int dz = Integer.compare(to.getBlockZ() - from.getBlockZ(), 0);
+
+        if (dx == 0 && dz == 0)
+            return null;
+
+        return new RailDirection(dx, dz);
+    }
+
+    private void snapMissingControlPointHeightsToTerrain(List<Vector> points) {
+        if (blocks == null || !hasMissingControlPointHeights(points))
+            return;
+
+        GeneratorUtils.adjustHeight(points, blocks);
+    }
+
+    private boolean hasMissingControlPointHeights(List<Vector> points) {
+        if (customControlPoints != null)
+            return false;
+
+        for (Vector point : points)
+            if (point.getBlockY() != 0)
+                return false;
+
+        return true;
+    }
+
+    private List<Vector> getRestoreSelectionPoints() {
+        if (customControlPoints != null && railSelectionPoints.size() >= 3)
+            return railSelectionPoints;
+
+        return controlPoints;
+    }
+
+    private int getSelectionMinY(List<Vector> points) {
+        int minY = getRegion() != null ? getRegion().getMinimumY() : getMinPointY(points);
+        return Math.max(getPlayer().getWorld().getMinHeight(), minY - SELECTION_VERTICAL_PADDING);
+    }
+
+    private int getSelectionMaxY(List<Vector> points) {
+        int maxY = getRegion() != null ? getRegion().getMaximumY() : getMaxPointY(points);
+        return Math.min(getPlayer().getWorld().getMaxHeight() - 1, maxY + SELECTION_VERTICAL_PADDING);
+    }
+
+    private List<Vector> createBoundsSelectionPoints(List<Vector> points) {
+        int minX = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+
+        for (Vector point : points) {
+            minX = Math.min(minX, point.getBlockX() - SELECTION_PADDING);
+            minZ = Math.min(minZ, point.getBlockZ() - SELECTION_PADDING);
+            maxX = Math.max(maxX, point.getBlockX() + SELECTION_PADDING);
+            maxZ = Math.max(maxZ, point.getBlockZ() + SELECTION_PADDING);
+        }
+
+        return List.of(
+                new Vector(minX, 0, minZ),
+                new Vector(maxX, 0, minZ),
+                new Vector(maxX, 0, maxZ),
+                new Vector(minX, 0, maxZ)
+        );
+    }
+
+    private int getMinPointY(List<Vector> points) {
+        int minY = Integer.MAX_VALUE;
+
+        for (Vector point : points)
+            minY = Math.min(minY, point.getBlockY());
+
+        return minY == Integer.MAX_VALUE ? getPlayer().getWorld().getMinHeight() : minY;
+    }
+
+    private int getMaxPointY(List<Vector> points) {
+        int maxY = Integer.MIN_VALUE;
+
+        for (Vector point : points)
+            maxY = Math.max(maxY, point.getBlockY());
+
+        return maxY == Integer.MIN_VALUE ? getPlayer().getWorld().getMaxHeight() - 1 : maxY;
+    }
+
+    private List<Vector> sanitizePoints(List<Vector> points) {
+        List<Vector> sanitizedPoints = new ArrayList<>();
+
+        for (Vector point : points)
+            addPointIfNew(sanitizedPoints, toBlockVector(point));
+
+        return sanitizedPoints;
     }
 
     private List<Vector> copyPoints(List<Vector> points) {
@@ -126,441 +1074,30 @@ public class RailScripts extends Script {
         return copiedPoints;
     }
 
-    private List<Vector> getCuboidControlPoints(CuboidRegion cuboidRegion) {
-        List<Vector> points = new ArrayList<>();
-
-        BlockVector3 pos1 = cuboidRegion.getPos1();
-        BlockVector3 pos2 = cuboidRegion.getPos2();
-
-        points.add(new Vector(pos1.x(), pos1.y(), pos1.z()));
-        points.add(new Vector(pos2.x(), pos2.y(), pos2.z()));
-
-        return points;
-    }
-
-    private List<Vector> getConvexControlPoints(ConvexPolyhedralRegion convexRegion) {
-        List<Vector> points = new ArrayList<>();
-
-        for (BlockVector3 point : convexRegion.getVertices()) {
-            points.add(new Vector(
-                    point.x(),
-                    point.y(),
-                    point.z()
-            ));
-        }
-
-        return points;
-    }
-
-    private List<Vector> getPolygonalControlPoints(Polygonal2DRegion polygonalRegion) {
-        List<Vector> points = new ArrayList<>();
-
-        for (BlockVector2 point : polygonalRegion.getPoints()) {
-            int y = getRailYFromWorld(
-                    point.x(),
-                    point.z(),
-                    polygonalRegion.getMinimumY(),
-                    polygonalRegion.getMaximumY()
-            );
-
-            points.add(new Vector(
-                    point.x(),
-                    y,
-                    point.z()
-            ));
-        }
-
-        return points;
-    }
-
-    private int getRailYFromWorld(int x, int z, int minimumY, int maximumY) {
-        for (int y = maximumY; y >= minimumY; y--) {
-            Block block = getPlayer().getWorld().getBlockAt(x, y, z);
-            Material material = block.getType();
-
-            if (!material.isAir()
-                    && material != Material.WATER
-                    && material != Material.LAVA) {
-                return y + 1;
-            }
-        }
-
-        return minimumY;
-    }
-
-    private List<Vector> createEightDirectionalPath(List<Vector> points) {
-        List<Vector> path = new ArrayList<>();
-
-        if (points == null || points.isEmpty())
-            return path;
-
-        addPointIfNew(path, toBlockVector(points.get(0)));
-
-        for (int index = 0; index < points.size() - 1; index++) {
-            Vector start = toBlockVector(points.get(index));
-            Vector end = toBlockVector(points.get(index + 1));
-
-            appendEightDirectionalLine(path, start, end);
-        }
-
-        return path;
-    }
-
-    private void appendEightDirectionalLine(List<Vector> path, Vector start, Vector end) {
-        int x = start.getBlockX();
-        int z = start.getBlockZ();
-
-        int startY = start.getBlockY();
-
-        int endX = end.getBlockX();
-        int endY = end.getBlockY();
-        int endZ = end.getBlockZ();
-
-        int totalHorizontalSteps = Math.max(
-                Math.abs(endX - x),
-                Math.abs(endZ - z)
-        );
-
-        if (totalHorizontalSteps == 0) {
-            addPointIfNew(path, new Vector(endX, endY, endZ));
-            return;
-        }
-
-        int currentStep = 0;
-
-        while (x != endX || z != endZ) {
-            if (x < endX)
-                x++;
-            else if (x > endX)
-                x--;
-
-            if (z < endZ)
-                z++;
-            else if (z > endZ)
-                z--;
-
-            currentStep++;
-
-            double progress = currentStep / (double) totalHorizontalSteps;
-            int y = (int) Math.round(startY + (endY - startY) * progress);
-
-            addPointIfNew(path, new Vector(x, y, z));
-        }
-    }
-
-    private Map<PositionKey, RailSideBlock> buildSideBlocks(List<Vector> centerPath) {
-        Map<PositionKey, RailSideBlock> sideBlocks = new LinkedHashMap<>();
-        Map<PositionKey, Vector> centerBlocks = createCenterBlockMap(centerPath);
-
-        for (int index = 0; index < centerPath.size(); index++) {
-            Vector center = centerPath.get(index);
-            List<Vector> directions = getDirectionsForCenterPoint(centerPath, index);
-
-            for (Vector direction : directions)
-                addSideBlocksForDirection(sideBlocks, centerBlocks, center, direction);
-        }
-
-        return sideBlocks;
-    }
-
-    private Map<PositionKey, Vector> createCenterBlockMap(List<Vector> centerPath) {
-        Map<PositionKey, Vector> centerBlocks = new LinkedHashMap<>();
-
-        for (Vector center : centerPath)
-            centerBlocks.put(PositionKey.from(center), center);
-
-        return centerBlocks;
-    }
-
-    private List<Vector> getDirectionsForCenterPoint(List<Vector> path, int index) {
-        List<Vector> directions = new ArrayList<>();
-
-        if (index > 0)
-            addDirectionIfNew(directions, getHorizontalDirection(path.get(index - 1), path.get(index)));
-
-        if (index < path.size() - 1)
-            addDirectionIfNew(directions, getHorizontalDirection(path.get(index), path.get(index + 1)));
-
-        return directions;
-    }
-
-    private void addDirectionIfNew(List<Vector> directions, Vector direction) {
-        if (direction == null)
-            return;
-
-        for (Vector existingDirection : directions) {
-            if (existingDirection.getBlockX() == direction.getBlockX()
-                    && existingDirection.getBlockZ() == direction.getBlockZ())
-                return;
-        }
-
-        directions.add(direction);
-    }
-
-    private void addSideBlocksForDirection(
-            Map<PositionKey, RailSideBlock> sideBlocks,
-            Map<PositionKey, Vector> centerBlocks,
-            Vector center,
-            Vector direction
-    ) {
-        if (isDiagonal(direction)) {
-            addDiagonalSideBlocks(sideBlocks, centerBlocks, center, direction);
-            return;
-        }
-
-        addStraightSideBlocks(sideBlocks, centerBlocks, center, direction);
-    }
-
-    private void addStraightSideBlocks(
-            Map<PositionKey, RailSideBlock> sideBlocks,
-            Map<PositionKey, Vector> centerBlocks,
-            Vector center,
-            Vector direction
-    ) {
-        Vector left = center.clone().add(getLeftOffset(direction));
-        Vector right = center.clone().add(getRightOffset(direction));
-
-        addSideBlock(sideBlocks, centerBlocks, left, direction);
-        addSideBlock(sideBlocks, centerBlocks, right, direction);
-    }
-
-    private void addDiagonalSideBlocks(
-            Map<PositionKey, RailSideBlock> sideBlocks,
-            Map<PositionKey, Vector> centerBlocks,
-            Vector center,
-            Vector direction
-    ) {
-        int dx = direction.getBlockX();
-        int dz = direction.getBlockZ();
-
-        Vector firstSide = new Vector(
-                center.getBlockX() + dx,
-                center.getBlockY(),
-                center.getBlockZ()
-        );
-
-        Vector secondSide = new Vector(
-                center.getBlockX(),
-                center.getBlockY(),
-                center.getBlockZ() + dz
-        );
-
-        addSideBlock(sideBlocks, centerBlocks, firstSide, direction);
-        addSideBlock(sideBlocks, centerBlocks, secondSide, direction);
-    }
-
-    private void addSideBlock(
-            Map<PositionKey, RailSideBlock> sideBlocks,
-            Map<PositionKey, Vector> centerBlocks,
-            Vector position,
-            Vector direction
-    ) {
-        PositionKey key = PositionKey.from(position);
-
-        if (centerBlocks.containsKey(key))
-            return;
-
-        RailSideBlock sideBlock = sideBlocks.computeIfAbsent(
-                key,
-                ignored -> new RailSideBlock(position)
-        );
-
-        sideBlock.addDirection(direction);
-    }
-
-    private Map<PositionKey, BlockState> buildBlockMap(
-            List<Vector> centerPath,
-            Map<PositionKey, RailSideBlock> sideBlocks
-    ) {
-        Map<PositionKey, BlockState> blockMap = new LinkedHashMap<>();
-
-        for (RailSideBlock sideBlock : sideBlocks.values()) {
-            Vector resolvedDirection = resolveSideBlockDirection(sideBlock, sideBlocks);
-            BlockState anvil = createAnvilBlockState(resolvedDirection);
-
-            if (anvil != null)
-                blockMap.put(PositionKey.from(sideBlock.position()), anvil);
-        }
-
-        for (Vector center : centerPath)
-            blockMap.put(PositionKey.from(center), createCenterBlockState(center));
-
-        return blockMap;
-    }
-
-    private Vector resolveSideBlockDirection(
-            RailSideBlock sideBlock,
-            Map<PositionKey, RailSideBlock> sideBlocks
-    ) {
-        Vector position = sideBlock.position();
-
-        boolean east = sideBlocks.containsKey(PositionKey.of(
-                position.getBlockX() + 1,
-                position.getBlockY(),
-                position.getBlockZ()
-        ));
-
-        boolean west = sideBlocks.containsKey(PositionKey.of(
-                position.getBlockX() - 1,
-                position.getBlockY(),
-                position.getBlockZ()
-        ));
-
-        boolean south = sideBlocks.containsKey(PositionKey.of(
-                position.getBlockX(),
-                position.getBlockY(),
-                position.getBlockZ() + 1
-        ));
-
-        boolean north = sideBlocks.containsKey(PositionKey.of(
-                position.getBlockX(),
-                position.getBlockY(),
-                position.getBlockZ() - 1
-        ));
-
-        boolean eastWest = east || west;
-        boolean northSouth = north || south;
-
-        if (eastWest && !northSouth)
-            return getHorizontalDirection(east, west);
-
-        if (!eastWest && northSouth)
-            return getVerticalDirection(south, north);
-
-        if (eastWest || northSouth)
-            return resolveCornerDirection(sideBlock, east, west, south, north);
-
-        return sideBlock.getAverageDirection();
-    }
-
-    private Vector getHorizontalDirection(boolean east, boolean west) {
-        if (east && !west)
-            return new Vector(1, 0, 0);
-
-        if (west && !east)
-            return new Vector(-1, 0, 0);
-
-        return new Vector(1, 0, 0);
-    }
-
-    private Vector getVerticalDirection(boolean south, boolean north) {
-        if (south && !north)
-            return new Vector(0, 0, 1);
-
-        if (north && !south)
-            return new Vector(0, 0, -1);
-
-        return new Vector(0, 0, 1);
-    }
-
-    private Vector resolveCornerDirection(
-            RailSideBlock sideBlock,
-            boolean east,
-            boolean west,
-            boolean south,
-            boolean north
-    ) {
-        Vector average = sideBlock.getAverageDirection();
-
-        int averageX = average.getBlockX();
-        int averageZ = average.getBlockZ();
-
-        if (Math.abs(averageX) > Math.abs(averageZ)) {
-            if (averageX > 0 && east)
-                return new Vector(1, 0, 0);
-
-            if (averageX < 0 && west)
-                return new Vector(-1, 0, 0);
-        }
-
-        if (Math.abs(averageZ) > Math.abs(averageX)) {
-            if (averageZ > 0 && south)
-                return new Vector(0, 0, 1);
-
-            if (averageZ < 0 && north)
-                return new Vector(0, 0, -1);
-        }
-
-        if (east)
-            return new Vector(1, 0, 0);
-
-        if (west)
-            return new Vector(-1, 0, 0);
-
-        if (south)
-            return new Vector(0, 0, 1);
-
-        if (north)
-            return new Vector(0, 0, -1);
-
-        return average;
-    }
-
     private BlockState createCenterBlockState(Vector position) {
         int index = Math.floorMod(
-                position.getBlockX() * 31 + position.getBlockZ() * 17,
+                position.getBlockX() * 31 + position.getBlockY() * 23 + position.getBlockZ() * 17,
                 CENTER_MATERIALS.length
         );
 
         return GeneratorUtils.getBlockState(CENTER_MATERIALS[index]);
     }
 
-    private BlockState createAnvilBlockState(Vector direction) {
+    private BlockState createAnvilBlockState(Direction direction) {
         if (BlockTypes.ANVIL == null)
             return null;
 
         return BlockTypes.ANVIL
                 .getDefaultState()
-                .with(PropertyKey.FACING, getWorldEditDirection(direction));
+                .with(PropertyKey.FACING, direction);
     }
 
-    private Direction getWorldEditDirection(Vector direction) {
-        int dx = direction.getBlockX();
-        int dz = direction.getBlockZ();
-
-        if (Math.abs(dx) >= Math.abs(dz)) {
-            if (dx > 0)
-                return Direction.EAST;
-
-            if (dx < 0)
-                return Direction.WEST;
-        }
-
-        if (dz > 0)
-            return Direction.SOUTH;
-
-        if (dz < 0)
-            return Direction.NORTH;
-
-        return Direction.EAST;
+    private Direction getXFacing(int dx) {
+        return dx >= 0 ? Direction.EAST : Direction.WEST;
     }
 
-    private Vector getHorizontalDirection(Vector from, Vector to) {
-        int dx = Integer.compare(to.getBlockX() - from.getBlockX(), 0);
-        int dz = Integer.compare(to.getBlockZ() - from.getBlockZ(), 0);
-
-        if (dx == 0 && dz == 0)
-            return null;
-
-        return new Vector(dx, 0, dz);
-    }
-
-    private boolean isDiagonal(Vector direction) {
-        return direction.getBlockX() != 0 && direction.getBlockZ() != 0;
-    }
-
-    private Vector getLeftOffset(Vector direction) {
-        int dx = direction.getBlockX();
-        int dz = direction.getBlockZ();
-
-        return new Vector(-dz, 0, dx);
-    }
-
-    private Vector getRightOffset(Vector direction) {
-        int dx = direction.getBlockX();
-        int dz = direction.getBlockZ();
-
-        return new Vector(dz, 0, -dx);
+    private Direction getZFacing(int dz) {
+        return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 
     private Vector toBlockVector(Vector vector) {
@@ -574,28 +1111,53 @@ public class RailScripts extends Script {
     private void addPointIfNew(List<Vector> points, Vector point) {
         Vector blockPoint = toBlockVector(point);
 
+        if (points.isEmpty() || !isSameBlock(points.get(points.size() - 1), blockPoint))
+            points.add(blockPoint);
+    }
+
+    private void replaceLastPoint(List<Vector> points, Vector point) {
+        Vector blockPoint = toBlockVector(point);
+
         if (points.isEmpty()) {
             points.add(blockPoint);
             return;
         }
 
-        if (!isSameBlock(points.get(points.size() - 1), blockPoint))
-            points.add(blockPoint);
-    }
-
-    private List<Vector> getCuboidRestoreSelection() {
-        List<Vector> restoreSelection = new ArrayList<>();
-
-        restoreSelection.add(controlPoints.get(0));
-        restoreSelection.add(controlPoints.get(controlPoints.size() - 1));
-
-        return restoreSelection;
+        points.set(points.size() - 1, blockPoint);
     }
 
     private boolean isSameBlock(Vector first, Vector second) {
         return first.getBlockX() == second.getBlockX()
                 && first.getBlockY() == second.getBlockY()
                 && first.getBlockZ() == second.getBlockZ();
+    }
+
+    private record RailDirection(int dx, int dz) {
+    }
+
+    private record RailSidePlacement(Vector position, Direction facing) {
+    }
+
+    private record RailSidePair(RailSidePlacement first, RailSidePlacement second, int fallbackPenalty) {
+
+        private RailSidePair reversed() {
+            return new RailSidePair(second, first, fallbackPenalty);
+        }
+
+        private boolean hasDuplicatePosition() {
+            return isSamePosition(first, second);
+        }
+
+        private boolean hasSamePositions(RailSidePair other) {
+            return (isSamePosition(first, other.first) && isSamePosition(second, other.second))
+                    || (isSamePosition(first, other.second) && isSamePosition(second, other.first));
+        }
+
+        private static boolean isSamePosition(RailSidePlacement first, RailSidePlacement second) {
+            return first.position().getBlockX() == second.position().getBlockX()
+                    && first.position().getBlockY() == second.position().getBlockY()
+                    && first.position().getBlockZ() == second.position().getBlockZ();
+        }
     }
 
     private record PositionKey(int x, int y, int z) {
@@ -617,33 +1179,51 @@ public class RailScripts extends Script {
         }
     }
 
+    private record ColumnKey(int x, int z) {
+
+        private static ColumnKey from(PositionKey key) {
+            return new ColumnKey(key.x(), key.z());
+        }
+    }
+
     private static class RailSideBlock {
 
-        private final Vector position;
-        private int directionX;
-        private int directionZ;
+        private final PositionKey key;
+        private final Map<Direction, Integer> facingScores = new LinkedHashMap<>();
 
-        private RailSideBlock(Vector position) {
-            this.position = position;
+        private RailSideBlock(PositionKey key) {
+            this.key = key;
         }
 
-        private Vector position() {
-            return position;
+        private PositionKey key() {
+            return key;
         }
 
-        private void addDirection(Vector direction) {
-            directionX += direction.getBlockX();
-            directionZ += direction.getBlockZ();
+        private void addFacing(Direction facing) {
+            facingScores.merge(facing, 1, Integer::sum);
         }
 
-        private Vector getAverageDirection() {
-            int dx = Integer.compare(directionX, 0);
-            int dz = Integer.compare(directionZ, 0);
+        private int getSupportScore() {
+            int score = 0;
 
-            if (dx == 0 && dz == 0)
-                return new Vector(1, 0, 0);
+            for (int facingScore : facingScores.values())
+                score += facingScore;
 
-            return new Vector(dx, 0, dz);
+            return score;
+        }
+
+        private Direction getPreferredFacing() {
+            Direction preferredFacing = Direction.EAST;
+            int preferredScore = -1;
+
+            for (Map.Entry<Direction, Integer> entry : facingScores.entrySet()) {
+                if (entry.getValue() > preferredScore) {
+                    preferredFacing = entry.getKey();
+                    preferredScore = entry.getValue();
+                }
+            }
+
+            return preferredFacing;
         }
     }
 }

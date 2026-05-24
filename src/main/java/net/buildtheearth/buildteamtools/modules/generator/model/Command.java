@@ -2,8 +2,12 @@ package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.GeneratorUtils;
+import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.MaxChangedBlocksException;
+import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.platform.Actor;
+import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionSelector;
 import com.sk89q.worldedit.world.World;
@@ -15,6 +19,7 @@ import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
 import net.buildtheearth.buildteamtools.modules.generator.listeners.GeneratorListener;
 import net.buildtheearth.buildteamtools.utils.MenuItems;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -190,6 +195,10 @@ public class Command {
                     future = GeneratorUtils.replaceBlocks(localSession, actor, weWorld, (BlockState[]) operation.get(0), (BlockState[]) operation.get(1));
                     break;
 
+                case SET_BLOCKSTATES_AT_POSITIONS:
+                    future = setBlockStatesAtPositions(Arrays.asList((Vector[]) operation.get(0)), Arrays.asList((BlockState[]) operation.get(1)));
+                    break;
+
                 case DRAW_CURVE_WITH_MASKS:
                     future = GeneratorUtils.drawCurveWithMasks(localSession, actor, weWorld, blocks, Arrays.asList((String[]) operation.get(0)), Arrays.asList((Vector[]) operation.get(1)), (BlockState[]) operation.get(2), (Boolean) operation.get(3));
                     break;
@@ -269,6 +278,36 @@ public class Command {
                     BuildTeamTools.getInstance()
             );
         }
+    }
+
+    private CompletableFuture<Void> setBlockStatesAtPositions(List<Vector> positions, List<BlockState> blockStates) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+
+        Bukkit.getScheduler().runTaskAsynchronously(BuildTeamTools.getInstance(), () -> {
+            try (EditSession editSession = WorldEdit.getInstance().newEditSession(weWorld)) {
+                for (int index = 0; index < positions.size(); index++) {
+                    BlockState blockState = blockStates.get(index);
+
+                    if (blockState == null)
+                        continue;
+
+                    Vector position = positions.get(index);
+                    editSession.setBlock(
+                            BlockVector3.at(position.getBlockX(), position.getBlockY(), position.getBlockZ()),
+                            blockState
+                    );
+                }
+
+                GeneratorUtils.saveEditSession(editSession, localSession, actor);
+                future.complete(null);
+            } catch (MaxChangedBlocksException e) {
+                future.completeExceptionally(e);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+
+        return future;
     }
 
     /** Converts the XYZ coordinates in a command to the highest block at that location while skipping certain blocks. */

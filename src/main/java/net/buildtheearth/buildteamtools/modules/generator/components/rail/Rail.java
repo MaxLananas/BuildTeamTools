@@ -14,6 +14,8 @@ import java.util.List;
 public class Rail extends GeneratorComponent {
 
     private static final int TARGET_BLOCK_RANGE = 200;
+    private static final int CUSTOM_SELECTION_PADDING = 4;
+    private static final int CUSTOM_SELECTION_VERTICAL_PADDING = 12;
 
     public Rail() {
         super(GeneratorType.RAILWAY);
@@ -21,7 +23,8 @@ public class Rail extends GeneratorComponent {
 
     @Override
     public void analyzeCommand(Player player, String[] args) {
-        addPlayerSetting(player);
+        if (getRailSettings(player) == null)
+            addPlayerSetting(player);
 
         if (args.length >= 2) {
             String subCommand = args[1].toLowerCase();
@@ -76,11 +79,76 @@ public class Rail extends GeneratorComponent {
         RailSettings settings = getRailSettings(player);
 
         if (settings != null && settings.hasEnoughCustomControlPoints()) {
-            new RailScripts(player, this, new ArrayList<>(settings.getCustomControlPoints()));
+            List<Vector> customControlPoints = new ArrayList<>(settings.getCustomControlPoints());
+            createCustomPointSelection(player, customControlPoints);
+            new RailScripts(player, this, customControlPoints);
             return;
         }
 
         new RailScripts(player, this);
+    }
+
+    private void createCustomPointSelection(Player player, List<Vector> customControlPoints) {
+        List<Vector> selectionLine = new ArrayList<>(customControlPoints);
+
+        if (selectionLine.size() >= 2)
+            selectionLine = GeneratorUtils.extendPolyLine(selectionLine);
+
+        List<Vector> selectionPoints = GeneratorUtils.shiftPoints(selectionLine, CUSTOM_SELECTION_PADDING, true);
+
+        if (selectionPoints == null || selectionPoints.size() < 3) {
+            Vector[] bounds = getCustomPointBounds(customControlPoints);
+            GeneratorUtils.createCuboidSelection(player, bounds[0], bounds[1]);
+            return;
+        }
+
+        GeneratorUtils.createPolySelection(
+                player,
+                selectionPoints,
+                getCustomSelectionMinY(player, customControlPoints),
+                getCustomSelectionMaxY(player, customControlPoints)
+        );
+    }
+
+    private Vector[] getCustomPointBounds(List<Vector> customControlPoints) {
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+
+        for (Vector point : customControlPoints) {
+            minX = Math.min(minX, point.getBlockX() - CUSTOM_SELECTION_PADDING);
+            minY = Math.min(minY, point.getBlockY() - CUSTOM_SELECTION_VERTICAL_PADDING);
+            minZ = Math.min(minZ, point.getBlockZ() - CUSTOM_SELECTION_PADDING);
+            maxX = Math.max(maxX, point.getBlockX() + CUSTOM_SELECTION_PADDING);
+            maxY = Math.max(maxY, point.getBlockY() + CUSTOM_SELECTION_VERTICAL_PADDING);
+            maxZ = Math.max(maxZ, point.getBlockZ() + CUSTOM_SELECTION_PADDING);
+        }
+
+        return new Vector[]{
+                new Vector(minX, minY, minZ),
+                new Vector(maxX, maxY, maxZ)
+        };
+    }
+
+    private int getCustomSelectionMinY(Player player, List<Vector> customControlPoints) {
+        int minY = Integer.MAX_VALUE;
+
+        for (Vector point : customControlPoints)
+            minY = Math.min(minY, point.getBlockY());
+
+        return Math.max(player.getWorld().getMinHeight(), minY - CUSTOM_SELECTION_VERTICAL_PADDING);
+    }
+
+    private int getCustomSelectionMaxY(Player player, List<Vector> customControlPoints) {
+        int maxY = Integer.MIN_VALUE;
+
+        for (Vector point : customControlPoints)
+            maxY = Math.max(maxY, point.getBlockY());
+
+        return Math.min(player.getWorld().getMaxHeight() - 1, maxY + CUSTOM_SELECTION_VERTICAL_PADDING);
     }
 
     private void addPoint(Player player) {
