@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.alpslib.utils)   {
         exclude(group = "com.github.cryptomorin", module = "XSeries")
     }
+    implementation(libs.alpslib.geo)
     implementation(libs.com.alpsbte.canvas)
     implementation(libs.com.github.cryptomorin.xseries)
     implementation(libs.net.wesjd.anvilgui)

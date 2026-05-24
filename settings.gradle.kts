@@ -4,7 +4,7 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         mavenCentral()
-        //mavenLocal() // NEVER use in Production/Commits!
+        // mavenLocal() // NEVER use in Production/Commits!
         maven {
             url = uri("https://repo.papermc.io/repository/maven-public/")
         }
