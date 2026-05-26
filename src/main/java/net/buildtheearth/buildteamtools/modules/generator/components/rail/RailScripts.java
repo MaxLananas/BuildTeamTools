@@ -35,20 +35,12 @@ public class RailScripts extends Script {
             XMaterial.COBBLESTONE
     };
 
-    private final List<Vector> customControlPoints;
-
     private Block[][][] blocks;
     private List<Vector> controlPoints = new ArrayList<>();
     private List<Vector> centerPath = new ArrayList<>();
-    private List<Vector> railSelectionPoints = new ArrayList<>();
 
     public RailScripts(Player player, GeneratorComponent generatorComponent) {
-        this(player, generatorComponent, null);
-    }
-
-    public RailScripts(Player player, GeneratorComponent generatorComponent, List<Vector> customControlPoints) {
         super(player, generatorComponent);
-        this.customControlPoints = customControlPoints;
 
         Thread thread = new Thread(() -> {
             prepareSession();
@@ -62,7 +54,7 @@ public class RailScripts extends Script {
 
         if (!hasValidControlPoints()) return;
 
-        railSelectionPoints = createRailSelectionPoints(controlPoints);
+        List<Vector> railSelectionPoints = createRailSelectionPoints(controlPoints);
         GeneratorUtils.createPolySelection(
                 getPlayer(),
                 railSelectionPoints,
@@ -128,8 +120,6 @@ public class RailScripts extends Script {
     }
 
     private List<Vector> getControlPoints() {
-        if (customControlPoints != null && customControlPoints.size() >= 2) return copyPoints(customControlPoints);
-
         List<Vector> selectionPoints = GeneratorUtils.getSelectionPointsFromRegion(getRegion());
 
         if (selectionPoints == null) return Collections.emptyList();
@@ -576,8 +566,6 @@ public class RailScripts extends Script {
     }
 
     private boolean hasMissingControlPointHeights(List<Vector> points) {
-        if (customControlPoints != null) return false;
-
         for (Vector point : points)
             if (point.getBlockY() != 0) return false;
 
@@ -585,8 +573,6 @@ public class RailScripts extends Script {
     }
 
     private List<Vector> getRestoreSelectionPoints() {
-        if (customControlPoints != null && railSelectionPoints.size() >= 3) return railSelectionPoints;
-
         return controlPoints;
     }
 
