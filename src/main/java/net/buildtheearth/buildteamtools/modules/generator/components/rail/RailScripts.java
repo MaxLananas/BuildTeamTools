@@ -60,8 +60,7 @@ public class RailScripts extends Script {
     private void prepareSession() {
         controlPoints = sanitizePoints(getControlPoints());
 
-        if (!hasValidControlPoints())
-            return;
+        if (!hasValidControlPoints()) return;
 
         railSelectionPoints = createRailSelectionPoints(controlPoints);
         GeneratorUtils.createPolySelection(
@@ -87,8 +86,7 @@ public class RailScripts extends Script {
     }
 
     private void railScript_v_2_0() {
-        if (!hasValidControlPoints())
-            return;
+        if (!hasValidControlPoints()) return;
 
         if (centerPath.size() < 2) {
             getPlayer().sendMessage("§cRail Generator could not create a valid rail path.");
@@ -130,13 +128,11 @@ public class RailScripts extends Script {
     }
 
     private List<Vector> getControlPoints() {
-        if (customControlPoints != null && customControlPoints.size() >= 2)
-            return copyPoints(customControlPoints);
+        if (customControlPoints != null && customControlPoints.size() >= 2) return copyPoints(customControlPoints);
 
         List<Vector> selectionPoints = GeneratorUtils.getSelectionPointsFromRegion(getRegion());
 
-        if (selectionPoints == null)
-            return Collections.emptyList();
+        if (selectionPoints == null) return Collections.emptyList();
 
         return copyPoints(selectionPoints);
     }
@@ -149,8 +145,7 @@ public class RailScripts extends Script {
 
         List<Vector> shiftedPoints = GeneratorUtils.shiftPoints(selectionLine, SELECTION_PADDING, true);
 
-        if (shiftedPoints == null || shiftedPoints.size() < 3)
-            return createBoundsSelectionPoints(points);
+        if (shiftedPoints == null || shiftedPoints.size() < 3) return createBoundsSelectionPoints(points);
 
         return shiftedPoints;
     }
@@ -162,8 +157,7 @@ public class RailScripts extends Script {
     private List<Vector> createShortestPath(List<Vector> points) {
         List<Vector> path = new ArrayList<>();
 
-        if (points.isEmpty())
-            return path;
+        if (points.isEmpty()) return path;
 
         addPointIfNew(path, points.get(0));
 
@@ -198,8 +192,7 @@ public class RailScripts extends Script {
         List<Vector> result = new ArrayList<>();
 
         for (int index = 0; index < path.size(); index++) {
-            if (index > 0 && index < path.size() - 1 && isOrthogonalCorner(path.get(index - 1), path.get(index), path.get(index + 1)))
-                continue;
+            if (index > 0 && index < path.size() - 1 && isOrthogonalCorner(path.get(index - 1), path.get(index), path.get(index + 1))) continue;
 
             result.add(path.get(index));
         }
@@ -302,8 +295,7 @@ public class RailScripts extends Script {
         PositionKey key = PositionKey.from(position);
 
         for (RailSidePlacement placement : placements) {
-            if (PositionKey.from(placement.position()).equals(key))
-                return;
+            if (PositionKey.from(placement.position()).equals(key)) return;
         }
 
         placements.add(new RailSidePlacement(position, facing));
@@ -317,8 +309,7 @@ public class RailScripts extends Script {
     ) {
         PositionKey key = PositionKey.from(sidePlacement.position());
 
-        if (centerPositions.contains(key) || centerColumns.contains(ColumnKey.from(key)))
-            return;
+        if (centerPositions.contains(key) || centerColumns.contains(ColumnKey.from(key))) return;
 
         sideBlocks
                 .computeIfAbsent(key, ignored -> new RailSideBlock(key))
@@ -381,8 +372,7 @@ public class RailScripts extends Script {
             Vector center = path.get(index);
             int sideBlockCount = getAdjacentSideBlockCount(center, sideBlocks);
 
-            if (sideBlockCount >= 2)
-                continue;
+            if (sideBlockCount >= 2) continue;
 
             List<RailSidePlacement> repairPlacements = getSidePlacements(path, index);
             repairPlacements.addAll(getFallbackSidePlacements(center, getRailStep(path, index, new RailStep(1, 0))));
@@ -398,8 +388,7 @@ public class RailScripts extends Script {
                         sideBlockCount
                 );
 
-                if (sideBlockCount >= 2)
-                    break;
+                if (sideBlockCount >= 2) break;
             }
         }
     }
@@ -409,8 +398,7 @@ public class RailScripts extends Script {
 
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
-                if (dx == 0 && dz == 0)
-                    continue;
+                if (dx == 0 && dz == 0) continue;
 
                 addSidePlacement(
                         placements,
@@ -424,14 +412,11 @@ public class RailScripts extends Script {
     }
 
     private Direction getFallbackFacing(int offsetX, int offsetZ, RailStep step) {
-        if (Math.abs(step.dx()) >= Math.abs(step.dz()) && step.dx() != 0)
-            return GeneratorUtils.getFacing(step.dx(), 0, DEFAULT_FACING);
+        if (Math.abs(step.dx()) >= Math.abs(step.dz()) && step.dx() != 0) return GeneratorUtils.getFacing(step.dx(), 0, DEFAULT_FACING);
 
-        if (step.dz() != 0)
-            return GeneratorUtils.getFacing(0, step.dz(), DEFAULT_FACING);
+        if (step.dz() != 0) return GeneratorUtils.getFacing(0, step.dz(), DEFAULT_FACING);
 
-        if (Math.abs(offsetX) >= Math.abs(offsetZ) && offsetX != 0)
-            return GeneratorUtils.getFacing(offsetX, 0, DEFAULT_FACING);
+        if (Math.abs(offsetX) >= Math.abs(offsetZ) && offsetX != 0) return GeneratorUtils.getFacing(offsetX, 0, DEFAULT_FACING);
 
         return GeneratorUtils.getFacing(0, offsetZ, DEFAULT_FACING);
     }
@@ -447,16 +432,14 @@ public class RailScripts extends Script {
     ) {
         PositionKey key = PositionKey.from(sidePlacement.position());
 
-        if (centerPositions.contains(key) || centerColumns.contains(ColumnKey.from(key)) || sideBlocks.containsKey(key))
-            return sideBlockCount;
+        if (centerPositions.contains(key) || centerColumns.contains(ColumnKey.from(key)) || sideBlocks.containsKey(key)) return sideBlockCount;
 
         ColumnKey columnKey = ColumnKey.from(key);
         RailSideBlock existingColumnBlock = sideColumns.get(columnKey);
         boolean replacingAdjacentBlock = existingColumnBlock != null && isAdjacent(existingColumnBlock.key(), centerKey);
 
         if (existingColumnBlock != null) {
-            if (!canReplaceSideBlock(existingColumnBlock.key(), centerPositions, sideBlocks))
-                return sideBlockCount;
+            if (!canReplaceSideBlock(existingColumnBlock.key(), centerPositions, sideBlocks)) return sideBlockCount;
 
             sideBlocks.remove(existingColumnBlock.key());
         }
@@ -474,8 +457,7 @@ public class RailScripts extends Script {
             Map<PositionKey, RailSideBlock> sideBlocks
     ) {
         for (PositionKey centerPosition : centerPositions) {
-            if (isAdjacent(sideBlockKey, centerPosition) && getAdjacentSideBlockCount(centerPosition.toVector(), sideBlocks) <= 2)
-                return false;
+            if (isAdjacent(sideBlockKey, centerPosition) && getAdjacentSideBlockCount(centerPosition.toVector(), sideBlocks) <= 2) return false;
         }
 
         return true;
@@ -537,11 +519,9 @@ public class RailScripts extends Script {
         int zConnections = (south ? 1 : 0) + (north ? 1 : 0);
         Direction preferredFacing = sideBlock.getPreferredFacing();
 
-        if (xConnections > zConnections)
-            return resolveAxisFacing(preferredFacing, Direction.EAST, Direction.WEST, east, west);
+        if (xConnections > zConnections) return resolveAxisFacing(preferredFacing, Direction.EAST, Direction.WEST, east, west);
 
-        if (zConnections > xConnections)
-            return resolveAxisFacing(preferredFacing, Direction.SOUTH, Direction.NORTH, south, north);
+        if (zConnections > xConnections) return resolveAxisFacing(preferredFacing, Direction.SOUTH, Direction.NORTH, south, north);
 
         return preferredFacing;
     }
@@ -553,14 +533,11 @@ public class RailScripts extends Script {
             boolean hasPositiveNeighbor,
             boolean hasNegativeNeighbor
     ) {
-        if (preferredFacing == positiveFacing && hasPositiveNeighbor || preferredFacing == negativeFacing && hasNegativeNeighbor)
-            return preferredFacing;
+        if (preferredFacing == positiveFacing && hasPositiveNeighbor || preferredFacing == negativeFacing && hasNegativeNeighbor) return preferredFacing;
 
-        if (hasPositiveNeighbor && !hasNegativeNeighbor)
-            return positiveFacing;
+        if (hasPositiveNeighbor && !hasNegativeNeighbor) return positiveFacing;
 
-        if (hasNegativeNeighbor && !hasPositiveNeighbor)
-            return negativeFacing;
+        if (hasNegativeNeighbor && !hasPositiveNeighbor) return negativeFacing;
 
         return preferredFacing == negativeFacing ? negativeFacing : positiveFacing;
     }
@@ -573,15 +550,12 @@ public class RailScripts extends Script {
             int dx = Integer.compare(previousStep.dx() + nextStep.dx(), 0);
             int dz = Integer.compare(previousStep.dz() + nextStep.dz(), 0);
 
-            if (dx != 0 || dz != 0)
-                return new RailStep(dx, dz);
+            if (dx != 0 || dz != 0) return new RailStep(dx, dz);
         }
 
-        if (nextStep != null)
-            return nextStep;
+        if (nextStep != null) return nextStep;
 
-        if (previousStep != null)
-            return previousStep;
+        if (previousStep != null) return previousStep;
 
         return fallbackStep;
     }
@@ -590,33 +564,28 @@ public class RailScripts extends Script {
         int dx = Integer.compare(to.getBlockX() - from.getBlockX(), 0);
         int dz = Integer.compare(to.getBlockZ() - from.getBlockZ(), 0);
 
-        if (dx == 0 && dz == 0)
-            return null;
+        if (dx == 0 && dz == 0) return null;
 
         return new RailStep(dx, dz);
     }
 
     private void snapMissingControlPointHeightsToTerrain(List<Vector> points) {
-        if (blocks == null || !hasMissingControlPointHeights(points))
-            return;
+        if (blocks == null || !hasMissingControlPointHeights(points)) return;
 
         GeneratorUtils.adjustHeight(points, blocks);
     }
 
     private boolean hasMissingControlPointHeights(List<Vector> points) {
-        if (customControlPoints != null)
-            return false;
+        if (customControlPoints != null) return false;
 
         for (Vector point : points)
-            if (point.getBlockY() != 0)
-                return false;
+            if (point.getBlockY() != 0) return false;
 
         return true;
     }
 
     private List<Vector> getRestoreSelectionPoints() {
-        if (customControlPoints != null && railSelectionPoints.size() >= 3)
-            return railSelectionPoints;
+        if (customControlPoints != null && railSelectionPoints.size() >= 3) return railSelectionPoints;
 
         return controlPoints;
     }
