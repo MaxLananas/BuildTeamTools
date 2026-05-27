@@ -20,7 +20,7 @@ public interface Flag {
             case HOUSE -> HouseFlag.byString(flag);
             case ROAD -> RoadFlag.byString(flag);
             case TREE -> TreeFlag.byString(flag);
-            case RAILWAY -> null;
+            case RAIL -> null;
             case FIELD -> FieldFlag.byString(flag);
         };
     }

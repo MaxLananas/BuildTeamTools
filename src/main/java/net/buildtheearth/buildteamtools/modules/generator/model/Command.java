@@ -242,6 +242,7 @@ public class Command {
                 ChatHelper.logError("Error while processing command.");
 
             e.printStackTrace();
+            sendGeneratorError();
         }
 
         if (future != null) {
@@ -253,7 +254,8 @@ public class Command {
 
                 if (ex != null) {
                     ChatHelper.logError("Async operation failed: " + operation.getOperationType() + " - " + operation.getValuesAsString());
-                    BuildTeamTools.getInstance().getComponentLogger().error("Async operation failed", ex);
+                    ex.printStackTrace();
+                    sendGeneratorError();
                 }
 
                 // Remove the processed operation from the queue
@@ -262,6 +264,15 @@ public class Command {
         } else if (!breakPointActive) {
             operations.remove(0);
         }
+    }
+
+    private void sendGeneratorError() {
+        if (Bukkit.isPrimaryThread()) {
+            generatorComponent.sendError(player);
+            return;
+        }
+
+        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> generatorComponent.sendError(player));
     }
 
     private void runInternalGeneratorCommand(String command) {

@@ -3,7 +3,7 @@ package net.buildtheearth.buildteamtools.modules.generator.commands;
 import com.alpsbte.alpslib.utils.ChatHelper;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
 import net.buildtheearth.buildteamtools.modules.generator.menu.GeneratorMenu;
-import net.buildtheearth.buildteamtools.modules.generator.model.History;
+import net.buildtheearth.buildteamtools.modules.generator.model.HistoryEntry;
 import net.buildtheearth.buildteamtools.modules.network.model.Permissions;
 import net.buildtheearth.buildteamtools.utils.Utils;
 import org.bukkit.command.Command;
@@ -58,7 +58,7 @@ public class GeneratorCommand implements CommandExecutor {
                 }
 
                 ChatHelper.sendMessageBox(sender, "Generator History for " + p.getName(), () -> {
-                    for (History.HistoryEntry history : GeneratorModule.getInstance().getPlayerHistory(p).getHistoryEntries()) {
+                    for (HistoryEntry history : GeneratorModule.getInstance().getPlayerHistory(p).getHistoryEntries()) {
                         long timeDifference = System.currentTimeMillis() - history.getTimeCreated();
                         p.sendMessage("§e- " + history.getGeneratorType().name() + " §7-§e " + Utils.toDate(timeDifference) +
                                 " ago §7-§e " + history.getWorldEditCommandCount() + " Commands executed");

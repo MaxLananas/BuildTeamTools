@@ -47,7 +47,9 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         }
 
         addPlayerSetting(p);
-        convertArgsToSettings(p, args);
+        if (!convertArgsToSettings(p, args))
+            return;
+
         generate(p);
     }
 
@@ -70,7 +72,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
             case ROAD:
                 addPlayerSetting(p.getUniqueId(), new RoadSettings(p));
                 break;
-            case RAILWAY:
+            case RAIL:
                 addPlayerSetting(p.getUniqueId(), new RailSettings(p));
                 break;
             case TREE:
@@ -102,7 +104,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         String type = switch (generatorType) {
             case HOUSE -> "house";
             case ROAD -> "road";
-            case RAILWAY -> "rail";
+            case RAIL -> "rail";
             case TREE -> "tree";
             case FIELD -> "field";
         };
@@ -138,7 +140,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         String type = switch (generatorType) {
             case HOUSE -> "House";
             case ROAD -> "Road";
-            case RAILWAY -> "Rail";
+            case RAIL -> "Rail";
             case TREE -> "Tree";
             case FIELD -> "Field";
         };
@@ -155,7 +157,9 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
      * WALL_COLOR: 123:12
      * ROOF_TYPE: 456:78
      */
-    protected void convertArgsToSettings(Player p, String[] args) {
+    protected boolean convertArgsToSettings(Player p, String[] args) {
+        boolean convertedFlag = false;
+
         for (String flag : GeneratorUtils.convertArgsToFlags(args)) {
             String[] flagAndValue = GeneratorUtils.convertToFlagAndValue(flag, p);
 
@@ -172,6 +176,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
             if (finalFlag == null)
                 continue;
 
+            convertedFlag = true;
             Object flagValue = FlagType.convertToFlagType(finalFlag, flagAndValue[1]);
 
             String errorMessage = FlagType.validateFlagType(finalFlag, flagValue);
@@ -184,8 +189,12 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
             getPlayerSettings().get(p.getUniqueId()).setValue(finalFlag, flagValue);
         }
 
-        if (getPlayerSettings().get(p.getUniqueId()).getValues().isEmpty() && args.length > 1)
+        if (!convertedFlag && args.length > 1) {
             sendHelp(p);
+            return false;
+        }
+
+        return true;
     }
 
     @Override

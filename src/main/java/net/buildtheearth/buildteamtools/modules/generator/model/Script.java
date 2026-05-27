@@ -59,7 +59,7 @@ public class Script {
         //setGmask(null);
 
         GeneratorModule.getInstance().getGeneratorCommands().add(new Command(this, blocks));
-        GeneratorModule.getInstance().getPlayerHistory(getPlayer()).addHistoryEntry(new History.HistoryEntry(getGeneratorComponent().getGeneratorType(), this));
+        GeneratorModule.getInstance().getPlayerHistory(getPlayer()).addHistoryEntry(new HistoryEntry(getGeneratorComponent().getGeneratorType(), this));
     }
 
 

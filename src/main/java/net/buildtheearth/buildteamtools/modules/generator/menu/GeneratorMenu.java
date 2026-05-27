@@ -45,7 +45,7 @@ public class GeneratorMenu extends AbstractMenu {
 
     public static final int HOUSE_ITEM_SLOT = 9;
     public static final int ROAD_ITEM_SLOT = 11;
-    public static final int RAILWAY_ITEM_SLOT = 13;
+    public static final int RAIL_ITEM_SLOT = 13;
     public static final int TREE_ITEM_SLOT = 15;
     public static final int FIELD_ITEM_SLOT = 17;
 
@@ -116,7 +116,7 @@ public class GeneratorMenu extends AbstractMenu {
         );
 
         ItemStack railwayItem = Item.create(XMaterial.RAIL.get(), "§9Generate Railway", railwayLore);
-        getMenu().getSlot(RAILWAY_ITEM_SLOT).setItem(railwayItem);
+        getMenu().getSlot(RAIL_ITEM_SLOT).setItem(railwayItem);
 
         if (!CommonModule.getInstance().getDependencyComponent().isSchematicBrushEnabled()) {
             ArrayList<String> treeLore = ListUtil.createList(
@@ -213,9 +213,9 @@ public class GeneratorMenu extends AbstractMenu {
             new RoadColorMenu(clickPlayer, true);
         }));
 
-        getMenu().getSlot(RAILWAY_ITEM_SLOT).setClickHandler(((clickPlayer, clickInformation) -> {
+        getMenu().getSlot(RAIL_ITEM_SLOT).setClickHandler(((clickPlayer, clickInformation) -> {
             if (clickInformation.getClickType().equals(ClickType.RIGHT)) {
-                sendMoreInformation(clickPlayer, GeneratorType.RAILWAY);
+                sendMoreInformation(clickPlayer, GeneratorType.RAIL);
                 return;
             }
 
@@ -269,12 +269,9 @@ public class GeneratorMenu extends AbstractMenu {
         String wikiPage = generator.getWikiPage();
 
         clickPlayer.sendMessage(
-                Component.text("Open generator documentation: ", NamedTextColor.GRAY)
-                        .append(
-                                Component.text(wikiPage, NamedTextColor.RED)
-                                        .clickEvent(ClickEvent.openUrl(wikiPage))
-                                        .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)))
-                        )
+                Component.text("Open generator documentation: " + wikiPage, NamedTextColor.GRAY)
+                        .clickEvent(ClickEvent.openUrl(wikiPage))
+                        .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)))
         );
     }
 

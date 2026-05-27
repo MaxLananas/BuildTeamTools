@@ -5,7 +5,6 @@ import com.alpsbte.alpslib.utils.GeneratorUtils;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.extension.platform.Actor;
 import lombok.Getter;
-import lombok.Setter;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -13,13 +12,9 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
-import org.bukkit.World;
-import org.bukkit.block.Block;
-import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
-import java.util.List;
 
 public class History {
 
@@ -107,111 +102,5 @@ public class History {
             );
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
         }, 20L);
-    }
-
-    public static class HistoryEntry {
-
-        @Getter
-        private final GeneratorType generatorType;
-
-        @Getter
-        private final long timeCreated;
-
-        @Getter
-        private final Script script;
-
-        @Getter
-        private final int worldEditCommandCount;
-
-        @Getter
-        private final List<BlockChange> blockChanges;
-
-        public HistoryEntry(GeneratorType generatorType, Script script) {
-            this.generatorType = generatorType;
-            this.timeCreated = System.currentTimeMillis();
-            this.worldEditCommandCount = script.getChanges();
-            this.script = script;
-            this.blockChanges = new ArrayList<>();
-        }
-
-        public HistoryEntry(GeneratorType generatorType, Script script, int worldEditCommandCount) {
-            this.generatorType = generatorType;
-            this.timeCreated = System.currentTimeMillis();
-            this.worldEditCommandCount = worldEditCommandCount;
-            this.script = script;
-            this.blockChanges = new ArrayList<>();
-        }
-
-        public HistoryEntry(GeneratorType generatorType, Script script, List<BlockChange> blockChanges) {
-            this.generatorType = generatorType;
-            this.timeCreated = System.currentTimeMillis();
-            this.worldEditCommandCount = 0;
-            this.script = script;
-            this.blockChanges = blockChanges == null ? new ArrayList<>() : blockChanges;
-        }
-
-        public boolean hasBlockChanges() {
-            return blockChanges != null && !blockChanges.isEmpty();
-        }
-
-        public void applyUndo() {
-            for (int i = blockChanges.size() - 1; i >= 0; i--)
-                blockChanges.get(i).applyOld();
-        }
-
-        public void applyRedo() {
-            for (BlockChange blockChange : blockChanges)
-                blockChange.applyNew();
-        }
-    }
-
-    public static class BlockChange {
-
-        @Getter
-        private final String worldName;
-
-        @Getter
-        private final int x;
-
-        @Getter
-        private final int y;
-
-        @Getter
-        private final int z;
-
-        @Getter
-        private final String oldBlockData;
-
-        @Getter
-        @Setter
-        private String newBlockData;
-
-        public BlockChange(String worldName, int x, int y, int z, String oldBlockData, String newBlockData) {
-            this.worldName = worldName;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.oldBlockData = oldBlockData;
-            this.newBlockData = newBlockData;
-        }
-
-        public void applyOld() {
-            apply(oldBlockData);
-        }
-
-        public void applyNew() {
-            apply(newBlockData);
-        }
-
-        private void apply(String blockDataString) {
-            World world = Bukkit.getWorld(worldName);
-
-            if (world == null)
-                return;
-
-            Block block = world.getBlockAt(x, y, z);
-            BlockData blockData = Bukkit.createBlockData(blockDataString);
-            block.setBlockData(blockData, false);
-        }
     }
 }

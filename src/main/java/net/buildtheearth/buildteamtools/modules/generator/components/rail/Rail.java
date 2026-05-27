@@ -9,32 +9,7 @@ import org.bukkit.entity.Player;
 public class Rail extends GeneratorComponent {
 
     public Rail() {
-        super(GeneratorType.RAILWAY);
-    }
-
-    @Override
-    public void analyzeCommand(Player player, String[] args) {
-        if (!getPlayerSettings().containsKey(player.getUniqueId()))
-            addPlayerSetting(player);
-
-        if (args.length >= 2) {
-            String subCommand = args[1].toLowerCase();
-
-            switch (subCommand) {
-                case "help", "info", "?" -> {
-                    sendHelp(player);
-                    return;
-                }
-
-                default -> {
-                    player.sendMessage("§cUnknown rail command: §7" + args[1]);
-                    sendHelp(player);
-                    return;
-                }
-            }
-        }
-
-        generate(player);
+        super(GeneratorType.RAIL);
     }
 
     @Override

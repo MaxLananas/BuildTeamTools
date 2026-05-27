@@ -5,8 +5,10 @@ import com.cryptomorin.xseries.XMaterial;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockTypes;
+import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorComponent;
 import net.buildtheearth.buildteamtools.modules.generator.model.Script;
+import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
@@ -43,8 +45,13 @@ public class RailScripts extends Script {
         super(player, generatorComponent);
 
         Thread thread = new Thread(() -> {
-            prepareSession();
-            railScript_v_2_0();
+            try {
+                prepareSession();
+                railScript_v_2_0();
+            } catch (Exception exception) {
+                Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> getGeneratorComponent().sendError(getPlayer()));
+                exception.printStackTrace();
+            }
         });
         thread.start();
     }
