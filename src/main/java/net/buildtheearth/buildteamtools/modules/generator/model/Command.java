@@ -25,7 +25,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
-import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
@@ -265,18 +265,16 @@ public class Command {
     }
 
     private void runInternalGeneratorCommand(String command) {
-        player.setMetadata(
-                GeneratorListener.INTERNAL_GENERATOR_COMMAND_METADATA,
-                new FixedMetadataValue(BuildTeamTools.getInstance(), true)
+        player.getPersistentDataContainer().set(
+                GeneratorListener.INTERNAL_GENERATOR_COMMAND_KEY,
+                PersistentDataType.BYTE,
+                (byte) 1
         );
 
         try {
             player.chat(command);
         } finally {
-            player.removeMetadata(
-                    GeneratorListener.INTERNAL_GENERATOR_COMMAND_METADATA,
-                    BuildTeamTools.getInstance()
-            );
+            player.getPersistentDataContainer().remove(GeneratorListener.INTERNAL_GENERATOR_COMMAND_KEY);
         }
     }
 

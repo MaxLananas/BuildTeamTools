@@ -260,7 +260,7 @@ public class Script {
                 positions.toArray(new Vector[0]),
                 blockStates.toArray(new BlockState[0])
         ));
-        changes++;
+        changes += positions.size();
     }
 
     /**

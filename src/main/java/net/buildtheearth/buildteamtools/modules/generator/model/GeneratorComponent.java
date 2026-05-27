@@ -82,11 +82,6 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         }
     }
 
-    public void sendHelp(Player p, String @NonNull [] args) {
-        if (isHelpCommand(args))
-            sendHelp(p);
-    }
-
     public void sendHelp(@NonNull Player p) {
         p.sendMessage(Component.text(getWikiPage(), NamedTextColor.YELLOW));
     }

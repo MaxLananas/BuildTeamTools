@@ -4,6 +4,9 @@ import com.alpsbte.alpslib.utils.item.Item;
 import com.cryptomorin.xseries.XMaterial;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
+import net.buildtheearth.buildteamtools.modules.generator.components.field.Field;
+import net.buildtheearth.buildteamtools.modules.generator.components.field.FieldSettings;
+import net.buildtheearth.buildteamtools.modules.generator.components.field.menu.CropTypeMenu;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.House;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.HouseSettings;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.RoofType;
@@ -250,7 +253,15 @@ public class GeneratorMenu extends AbstractMenu {
                 return;
             }
 
-            sendMoreInformation(clickPlayer, GeneratorType.FIELD);
+            Field field = GeneratorModule.getInstance().getField();
+            field.getPlayerSettings().put(clickPlayer.getUniqueId(), new FieldSettings(clickPlayer));
+
+            if (!field.checkForPlayer(clickPlayer))
+                return;
+
+            clickPlayer.closeInventory();
+            clickPlayer.playSound(clickPlayer.getLocation(), Sound.UI_BUTTON_CLICK, 1.0F, 1.0F);
+            new CropTypeMenu(clickPlayer, true);
         }));
     }
 

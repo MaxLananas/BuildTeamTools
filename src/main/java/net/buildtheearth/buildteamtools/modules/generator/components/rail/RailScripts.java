@@ -50,7 +50,7 @@ public class RailScripts extends Script {
     }
 
     private void prepareSession() {
-        controlPoints = sanitizePoints(getControlPoints());
+        controlPoints = getControlPoints();
 
         if (!hasValidControlPoints()) return;
 
@@ -149,7 +149,7 @@ public class RailScripts extends Script {
 
         if (points.isEmpty()) return path;
 
-        addPointIfNew(path, points.get(0));
+        path.add(toBlockVector(points.get(0)));
 
         for (int index = 0; index < points.size() - 1; index++)
             appendShortestLine(path, points.get(index), points.get(index + 1));
@@ -170,7 +170,7 @@ public class RailScripts extends Script {
 
         for (int step = 1; step <= horizontalSteps; step++) {
             double progress = step / (double) horizontalSteps;
-            addPointIfNew(path, new Vector(
+            path.add(new Vector(
                     start.getBlockX() + (int) Math.round(deltaX * progress),
                     start.getBlockY() + (int) Math.round(deltaY * progress),
                     start.getBlockZ() + (int) Math.round(deltaZ * progress)
@@ -625,15 +625,6 @@ public class RailScripts extends Script {
         return maxY == Integer.MIN_VALUE ? getPlayer().getWorld().getMaxHeight() - 1 : maxY;
     }
 
-    private List<Vector> sanitizePoints(List<Vector> points) {
-        List<Vector> sanitizedPoints = new ArrayList<>();
-
-        for (Vector point : points)
-            addPointIfNew(sanitizedPoints, toBlockVector(point));
-
-        return sanitizedPoints;
-    }
-
     private List<Vector> copyPoints(List<Vector> points) {
         List<Vector> copiedPoints = new ArrayList<>();
 
@@ -664,13 +655,6 @@ public class RailScripts extends Script {
         );
     }
 
-    private void addPointIfNew(List<Vector> points, Vector point) {
-        Vector blockPoint = toBlockVector(point);
-
-        if (points.isEmpty() || !isSameBlock(points.get(points.size() - 1), blockPoint))
-            points.add(blockPoint);
-    }
-
     private void replaceLastPoint(List<Vector> points, Vector point) {
         Vector blockPoint = toBlockVector(point);
 
@@ -680,12 +664,6 @@ public class RailScripts extends Script {
         }
 
         points.set(points.size() - 1, blockPoint);
-    }
-
-    private boolean isSameBlock(Vector first, Vector second) {
-        return first.getBlockX() == second.getBlockX()
-                && first.getBlockY() == second.getBlockY()
-                && first.getBlockZ() == second.getBlockZ();
     }
 
     private record RailStep(int dx, int dz) {

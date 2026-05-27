@@ -2,7 +2,6 @@ package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import net.buildtheearth.buildteamtools.modules.generator.components.field.FieldFlag;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.HouseFlag;
-import net.buildtheearth.buildteamtools.modules.generator.components.rail.RailFlag;
 import net.buildtheearth.buildteamtools.modules.generator.components.road.RoadFlag;
 import net.buildtheearth.buildteamtools.modules.generator.components.tree.TreeFlag;
 import org.jspecify.annotations.NonNull;
@@ -21,7 +20,7 @@ public interface Flag {
             case HOUSE -> HouseFlag.byString(flag);
             case ROAD -> RoadFlag.byString(flag);
             case TREE -> TreeFlag.byString(flag);
-            case RAILWAY -> RailFlag.byString(flag);
+            case RAILWAY -> null;
             case FIELD -> FieldFlag.byString(flag);
         };
     }
