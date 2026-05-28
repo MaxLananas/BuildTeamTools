@@ -44,7 +44,7 @@ public class RailScripts extends Script {
     public RailScripts(Player player, GeneratorComponent generatorComponent) {
         super(player, generatorComponent);
 
-        Thread thread = new Thread(() -> {
+        Bukkit.getScheduler().runTaskAsynchronously(BuildTeamTools.getInstance(), () -> {
             try {
                 prepareSession();
                 railScript_v_2_0();
@@ -53,7 +53,6 @@ public class RailScripts extends Script {
                 exception.printStackTrace();
             }
         });
-        thread.start();
     }
 
     private void prepareSession() {

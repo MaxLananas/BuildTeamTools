@@ -4,9 +4,9 @@ import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.GeneratorUtils;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.platform.Actor;
+import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionSelector;
@@ -25,7 +25,6 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
@@ -276,16 +275,12 @@ public class Command {
     }
 
     private void runInternalGeneratorCommand(String command) {
-        player.getPersistentDataContainer().set(
-                GeneratorListener.INTERNAL_GENERATOR_COMMAND_KEY,
-                PersistentDataType.BYTE,
-                (byte) 1
-        );
+        GeneratorListener.queueInternalGeneratorCommand(player, command);
 
         try {
             player.chat(command);
         } finally {
-            player.getPersistentDataContainer().remove(GeneratorListener.INTERNAL_GENERATOR_COMMAND_KEY);
+            GeneratorListener.removeInternalGeneratorCommand(player, command);
         }
     }
 
@@ -303,14 +298,12 @@ public class Command {
                     Vector position = positions.get(index);
                     editSession.setBlock(
                             BlockVector3.at(position.getBlockX(), position.getBlockY(), position.getBlockZ()),
-                            blockState
+                            (Pattern) blockState
                     );
                 }
 
                 GeneratorUtils.saveEditSession(editSession, localSession, actor);
                 future.complete(null);
-            } catch (MaxChangedBlocksException e) {
-                future.completeExceptionally(e);
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }

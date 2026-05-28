@@ -1,10 +1,8 @@
 package net.buildtheearth.buildteamtools.modules.generator.listeners;
 
 import com.alpsbte.alpslib.utils.ChatHelper;
-import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,12 +10,53 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.persistence.PersistentDataType;
+
+import java.util.Map;
+import java.util.Queue;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class GeneratorListener implements Listener {
 
-    public static final NamespacedKey INTERNAL_GENERATOR_COMMAND_KEY =
-            new NamespacedKey(BuildTeamTools.getInstance(), "internal_generator_command");
+    private static final Map<UUID, Queue<String>> INTERNAL_GENERATOR_COMMANDS = new ConcurrentHashMap<>();
+
+    public static void queueInternalGeneratorCommand(Player player, String command) {
+        INTERNAL_GENERATOR_COMMANDS
+                .computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentLinkedQueue<>())
+                .add(command);
+    }
+
+    public static void removeInternalGeneratorCommand(Player player, String command) {
+        Queue<String> commands = INTERNAL_GENERATOR_COMMANDS.get(player.getUniqueId());
+
+        if (commands == null)
+            return;
+
+        commands.remove(command);
+
+        if (commands.isEmpty())
+            INTERNAL_GENERATOR_COMMANDS.remove(player.getUniqueId(), commands);
+    }
+
+    private static boolean consumeInternalGeneratorCommand(Player player, String command) {
+        Queue<String> commands = INTERNAL_GENERATOR_COMMANDS.get(player.getUniqueId());
+
+        if (commands == null)
+            return false;
+
+        String queuedCommand = commands.peek();
+
+        if (!command.equals(queuedCommand))
+            return false;
+
+        commands.poll();
+
+        if (commands.isEmpty())
+            INTERNAL_GENERATOR_COMMANDS.remove(player.getUniqueId(), commands);
+
+        return true;
+    }
 
     @EventHandler
     public void onCommand(PlayerCommandPreprocessEvent e) {
@@ -29,7 +68,7 @@ public class GeneratorListener implements Listener {
         if (!e.getMessage().startsWith("//"))
             return;
 
-        if (p.getPersistentDataContainer().has(INTERNAL_GENERATOR_COMMAND_KEY, PersistentDataType.BYTE))
+        if (consumeInternalGeneratorCommand(p, e.getMessage()))
             return;
 
         e.setCancelled(true);
