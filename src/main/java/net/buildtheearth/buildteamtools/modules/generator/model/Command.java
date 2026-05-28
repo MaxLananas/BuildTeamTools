@@ -2,12 +2,8 @@ package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.GeneratorUtils;
-import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.platform.Actor;
-import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionSelector;
 import com.sk89q.worldedit.world.World;
@@ -195,7 +191,7 @@ public class Command {
                     break;
 
                 case SET_BLOCKSTATES_AT_POSITIONS:
-                    future = setBlockStatesAtPositions(Arrays.asList((Vector[]) operation.get(0)), Arrays.asList((BlockState[]) operation.get(1)));
+                    future = GeneratorUtils.setBlockStatesAtPositions(localSession, actor, weWorld, Arrays.asList((Vector[]) operation.get(0)), Arrays.asList((BlockState[]) operation.get(1)));
                     break;
 
                 case DRAW_CURVE_WITH_MASKS:
@@ -282,34 +278,6 @@ public class Command {
         } finally {
             GeneratorListener.removeInternalGeneratorCommand(player, command);
         }
-    }
-
-    private CompletableFuture<Void> setBlockStatesAtPositions(List<Vector> positions, List<BlockState> blockStates) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
-        Bukkit.getScheduler().runTaskAsynchronously(BuildTeamTools.getInstance(), () -> {
-            try (EditSession editSession = WorldEdit.getInstance().newEditSession(weWorld)) {
-                for (int index = 0; index < positions.size(); index++) {
-                    BlockState blockState = blockStates.get(index);
-
-                    if (blockState == null)
-                        continue;
-
-                    Vector position = positions.get(index);
-                    editSession.setBlock(
-                            BlockVector3.at(position.getBlockX(), position.getBlockY(), position.getBlockZ()),
-                            (Pattern) blockState
-                    );
-                }
-
-                GeneratorUtils.saveEditSession(editSession, localSession, actor);
-                future.complete(null);
-            } catch (Exception e) {
-                future.completeExceptionally(e);
-            }
-        });
-
-        return future;
     }
 
     /** Converts the XYZ coordinates in a command to the highest block at that location while skipping certain blocks. */

@@ -11,5 +11,6 @@ public class RailSettings extends Settings {
 
     @Override
     public void setDefaultValues() {
+        setValue(RailFlag.RAIL_TYPE, RailType.STANDARD);
     }
 }

@@ -13,6 +13,7 @@ import net.buildtheearth.buildteamtools.modules.generator.components.house.RoofT
 import net.buildtheearth.buildteamtools.modules.generator.components.house.menu.WallColorMenu;
 import net.buildtheearth.buildteamtools.modules.generator.components.rail.Rail;
 import net.buildtheearth.buildteamtools.modules.generator.components.rail.RailSettings;
+import net.buildtheearth.buildteamtools.modules.generator.components.rail.menu.RailTypeMenu;
 import net.buildtheearth.buildteamtools.modules.generator.components.road.Road;
 import net.buildtheearth.buildteamtools.modules.generator.components.road.RoadSettings;
 import net.buildtheearth.buildteamtools.modules.generator.components.road.menu.RoadColorMenu;
@@ -107,6 +108,7 @@ public class GeneratorMenu extends AbstractMenu {
                 "- Convex",
                 "",
                 "§eFeatures:",
+                "- Rail Type selection",
                 "- Straight sections",
                 "- Direction changes",
                 "- Automatic side block orientation",
@@ -227,7 +229,7 @@ public class GeneratorMenu extends AbstractMenu {
 
             clickPlayer.closeInventory();
             clickPlayer.playSound(clickPlayer.getLocation(), Sound.UI_BUTTON_CLICK, 1.0F, 1.0F);
-            rail.generate(clickPlayer);
+            new RailTypeMenu(clickPlayer, true);
         }));
 
         getMenu().getSlot(TREE_ITEM_SLOT).setClickHandler(((clickPlayer, clickInformation) -> {

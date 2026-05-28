@@ -1,9 +1,16 @@
 package net.buildtheearth.buildteamtools.modules.generator.components.rail;
 
 import com.alpsbte.alpslib.utils.GeneratorUtils;
+import com.sk89q.worldedit.regions.ConvexPolyhedralRegion;
+import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.regions.Polygonal2DRegion;
+import com.sk89q.worldedit.regions.Region;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorComponent;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorType;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 public class Rail extends GeneratorComponent {
@@ -14,11 +21,24 @@ public class Rail extends GeneratorComponent {
 
     @Override
     public boolean checkForPlayer(Player player) {
-        return hasWorldEditSelection(player);
+        if (GeneratorUtils.checkForNoWorldEditSelection(player))
+            return false;
+
+        Region region = GeneratorUtils.getWorldEditSelection(player);
+
+        if (isSupportedRailSelection(region))
+            return true;
+
+        player.sendMessage(Component.text("Rail Generator supports cuboid, polygonal and convex WorldEdit selections.", NamedTextColor.RED));
+        player.closeInventory();
+        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0F, 1.0F);
+        return false;
     }
 
-    private boolean hasWorldEditSelection(Player player) {
-        return !GeneratorUtils.checkForNoWorldEditSelection(player);
+    private boolean isSupportedRailSelection(Region region) {
+        return region instanceof CuboidRegion
+                || region instanceof Polygonal2DRegion
+                || region instanceof ConvexPolyhedralRegion;
     }
 
     @Override
