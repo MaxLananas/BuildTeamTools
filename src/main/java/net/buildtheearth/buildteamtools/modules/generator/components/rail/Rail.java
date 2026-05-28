@@ -14,6 +14,10 @@ public class Rail extends GeneratorComponent {
 
     @Override
     public boolean checkForPlayer(Player player) {
+        return hasWorldEditSelection(player);
+    }
+
+    private boolean hasWorldEditSelection(Player player) {
         return !GeneratorUtils.checkForNoWorldEditSelection(player);
     }
 

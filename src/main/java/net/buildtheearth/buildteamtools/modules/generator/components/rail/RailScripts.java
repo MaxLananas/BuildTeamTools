@@ -8,6 +8,8 @@ import com.sk89q.worldedit.world.block.BlockTypes;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorComponent;
 import net.buildtheearth.buildteamtools.modules.generator.model.Script;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -87,19 +89,19 @@ public class RailScripts extends Script {
         if (!hasValidControlPoints()) return;
 
         if (centerPath.size() < 2) {
-            getPlayer().sendMessage("§cRail Generator could not create a valid rail path.");
+            sendRailError("Rail Generator could not create a valid rail path.");
             return;
         }
 
         if (centerPath.size() > MAX_PATH_POINTS) {
-            getPlayer().sendMessage("§cRail Generator path is too large. Please use a smaller selection.");
+            sendRailError("Rail Generator path is too large. Please use a smaller selection.");
             return;
         }
 
         Map<PositionKey, BlockState> railBlocks = buildRailBlocks(centerPath);
 
         if (railBlocks.size() > MAX_BLOCK_PLACEMENTS) {
-            getPlayer().sendMessage("§cRail Generator would place too many blocks. Please use a smaller selection.");
+            sendRailError("Rail Generator would place too many blocks. Please use a smaller selection.");
             return;
         }
 
@@ -113,16 +115,23 @@ public class RailScripts extends Script {
 
     private boolean hasValidControlPoints() {
         if (controlPoints.size() < 2) {
-            getPlayer().sendMessage("§cRail Generator needs at least two points.");
+            sendRailError("Rail Generator needs at least two points.");
             return false;
         }
 
         if (controlPoints.size() > MAX_CONTROL_POINTS) {
-            getPlayer().sendMessage("§cRail Generator has too many points. Please use fewer points.");
+            sendRailError("Rail Generator has too many points. Please use fewer points.");
             return false;
         }
 
         return true;
+    }
+
+    private void sendRailError(String message) {
+        Bukkit.getScheduler().runTask(
+                BuildTeamTools.getInstance(),
+                () -> getPlayer().sendMessage(Component.text(message, NamedTextColor.RED))
+        );
     }
 
     private List<Vector> getControlPoints() {
@@ -572,6 +581,8 @@ public class RailScripts extends Script {
     }
 
     private boolean hasMissingControlPointHeights(List<Vector> points) {
+        // WorldEdit polygon and convex selection points can arrive with Y=0,
+        // which means the rail should snap those points to the prepared terrain.
         for (Vector point : points)
             if (point.getBlockY() != 0) return false;
 
