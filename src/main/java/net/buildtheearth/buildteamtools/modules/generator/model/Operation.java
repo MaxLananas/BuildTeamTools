@@ -5,6 +5,7 @@ import lombok.Getter;
 import org.bukkit.Location;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -66,7 +67,8 @@ public class Operation {
             if (values[i] != null && !values[i].getClass().equals(operationType.getValueTypes()[i]))
                 throw new IllegalArgumentException("OperationType " + operationType + " must have a value type of " + operationType.getValueTypes()[i] + " at index " + i + ". Provided: " + values[i].getClass());
 
-        this.values = Arrays.asList(values);
+        this.values = new ArrayList<>(values.length);
+        Collections.addAll(this.values, values);
         this.operationType = operationType;
     }
 
@@ -81,7 +83,11 @@ public class Operation {
         return values.get(i);
     }
 
-    public String getValuesAsString() {
+    public <T> T get(int i, Class<T> type) {
+        return type.cast(values.get(i));
+    }
+
+    public String getValuesAsString(){
         StringBuilder builder = new StringBuilder();
         for (Object value : values) {
             if (value == null) {

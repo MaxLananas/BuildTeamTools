@@ -1,5 +1,6 @@
 package net.buildtheearth.buildteamtools.modules.generator.components.rail;
 
+import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.GeneratorUtils;
 import com.cryptomorin.xseries.XMaterial;
 import com.sk89q.worldedit.util.Direction;
@@ -59,7 +60,7 @@ public class RailScripts extends Script {
                 railScript_v_2_0();
             } catch (Exception exception) {
                 Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> getGeneratorComponent().sendError(getPlayer()));
-                exception.printStackTrace();
+                ChatHelper.logError("Rail Generator failed while preparing or generating.", exception);
             }
         });
     }

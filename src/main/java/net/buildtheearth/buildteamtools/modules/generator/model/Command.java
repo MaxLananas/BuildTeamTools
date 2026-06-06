@@ -23,7 +23,8 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -183,39 +184,100 @@ public class Command {
                     break;
 
                 case REPLACE_BLOCKSTATES_WITH_MASKS:
-                    future = GeneratorUtils.replaceBlocksWithMasks(localSession, actor, weWorld, Arrays.asList((String[]) operation.get(0)), (BlockState) operation.get(1), (BlockState[]) operation.get(2), (Integer) operation.get(3));
+                    future = GeneratorUtils.replaceBlocksWithMasks(
+                            localSession,
+                            actor,
+                            weWorld,
+                            toList(operation.get(0, String[].class)),
+                            operation.get(1, BlockState.class),
+                            operation.get(2, BlockState[].class),
+                            operation.get(3, Integer.class)
+                    );
                     break;
 
                 case REPLACE_BLOCKSTATES:
-                    future = GeneratorUtils.replaceBlocks(localSession, actor, weWorld, (BlockState[]) operation.get(0), (BlockState[]) operation.get(1));
+                    future = GeneratorUtils.replaceBlocks(
+                            localSession,
+                            actor,
+                            weWorld,
+                            operation.get(0, BlockState[].class),
+                            operation.get(1, BlockState[].class)
+                    );
                     break;
 
                 case SET_BLOCKSTATES_AT_POSITIONS:
-                    future = GeneratorUtils.setBlockStatesAtPositions(localSession, actor, weWorld, Arrays.asList((Vector[]) operation.get(0)), Arrays.asList((BlockState[]) operation.get(1)));
+                    future = GeneratorUtils.setBlockStatesAtPositions(
+                            localSession,
+                            actor,
+                            weWorld,
+                            toList(operation.get(0, Vector[].class)),
+                            toList(operation.get(1, BlockState[].class))
+                    );
                     break;
 
                 case DRAW_CURVE_WITH_MASKS:
-                    future = GeneratorUtils.drawCurveWithMasks(localSession, actor, weWorld, blocks, Arrays.asList((String[]) operation.get(0)), Arrays.asList((Vector[]) operation.get(1)), (BlockState[]) operation.get(2), (Boolean) operation.get(3));
+                    future = GeneratorUtils.drawCurveWithMasks(
+                            localSession,
+                            actor,
+                            weWorld,
+                            blocks,
+                            toList(operation.get(0, String[].class)),
+                            toList(operation.get(1, Vector[].class)),
+                            operation.get(2, BlockState[].class),
+                            operation.get(3, Boolean.class)
+                    );
                     break;
 
                 case DRAW_POLY_LINE_WITH_MASKS:
-                    future = GeneratorUtils.drawPolyLineWithMasks(localSession, actor, weWorld, blocks, Arrays.asList((String[]) operation.get(0)), Arrays.asList((Vector[]) operation.get(1)), (BlockState[]) operation.get(2), (Boolean) operation.get(3), (Boolean) operation.get(4));
+                    future = GeneratorUtils.drawPolyLineWithMasks(
+                            localSession,
+                            actor,
+                            weWorld,
+                            blocks,
+                            toList(operation.get(0, String[].class)),
+                            toList(operation.get(1, Vector[].class)),
+                            operation.get(2, BlockState[].class),
+                            operation.get(3, Boolean.class),
+                            operation.get(4, Boolean.class)
+                    );
                     break;
 
                 case DRAW_LINE_WITH_MASKS:
-                    future = GeneratorUtils.drawLineWithMasks(localSession, actor, weWorld, blocks, Arrays.asList((String[]) operation.get(0)), (Vector) operation.get(1), (Vector) operation.get(2), (BlockState[]) operation.get(3), (Boolean) operation.get(4));
+                    future = GeneratorUtils.drawLineWithMasks(
+                            localSession,
+                            actor,
+                            weWorld,
+                            blocks,
+                            toList(operation.get(0, String[].class)),
+                            operation.get(1, Vector.class),
+                            operation.get(2, Vector.class),
+                            operation.get(3, BlockState[].class),
+                            operation.get(4, Boolean.class)
+                    );
                     break;
 
                 case PASTE_SCHEMATIC:
-                    future = GeneratorUtils.pasteSchematic(localSession, actor, weWorld, blocks, (String) operation.get(0), (Location) operation.get(1), (double) operation.get(2));
+                    future = GeneratorUtils.pasteSchematic(
+                            localSession,
+                            actor,
+                            weWorld,
+                            blocks,
+                            operation.get(0, String.class),
+                            operation.get(1, Location.class),
+                            operation.get(2, Double.class)
+                    );
                     break;
 
                 case CUBOID_SELECTION:
-                    GeneratorUtils.createCuboidSelection(getPlayer(), (Vector) operation.get(0), (Vector) operation.get(1));
+                    GeneratorUtils.createCuboidSelection(
+                            getPlayer(),
+                            operation.get(0, Vector.class),
+                            operation.get(1, Vector.class)
+                    );
                     break;
 
                 case POLYGONAL_SELECTION:
-                    GeneratorUtils.createPolySelection(getPlayer(), Arrays.asList((Vector[]) operation.get(0)), blocks);
+                    GeneratorUtils.createPolySelection(getPlayer(), toList(operation.get(0, Vector[].class)), blocks);
                     break;
 
                 case CLEAR_HISTORY:
@@ -223,11 +285,11 @@ public class Command {
                     break;
 
                 case SET_GMASK:
-                    GeneratorUtils.setGmask(localSession, (String) operation.get(0));
+                    GeneratorUtils.setGmask(localSession, operation.get(0, String.class));
                     break;
 
                 case EXPAND_SELECTION:
-                    GeneratorUtils.expandSelection(localSession, (Vector) operation.get(0));
+                    GeneratorUtils.expandSelection(localSession, operation.get(0, Vector.class));
                     break;
             }
         } catch (Exception e) {
@@ -278,6 +340,12 @@ public class Command {
         } finally {
             GeneratorListener.removeInternalGeneratorCommand(player, command);
         }
+    }
+
+    private static <T> List<T> toList(T[] values) {
+        List<T> list = new ArrayList<>(values.length);
+        Collections.addAll(list, values);
+        return list;
     }
 
     /** Converts the XYZ coordinates in a command to the highest block at that location while skipping certain blocks. */
