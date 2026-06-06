@@ -9,7 +9,6 @@ import net.buildtheearth.buildteamtools.modules.generator.menu.GeneratorMenu;
 import net.buildtheearth.buildteamtools.modules.generator.model.Settings;
 import net.buildtheearth.buildteamtools.utils.menus.NameListMenu;
 import org.apache.commons.lang3.tuple.MutablePair;
-import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -30,12 +29,10 @@ public class RailTypeMenu extends NameListMenu {
         List<MutablePair<ItemStack, String>> railTypes = new ArrayList<>();
 
         for (RailType railType : RailType.values()) {
-            Material icon = railType.getIcon().parseMaterial();
-
-            if (icon == null)
-                icon = Material.RAIL;
-
-            railTypes.add(new MutablePair<>(Item.create(icon, railType.getDisplayName()), railType.getIdentifier()));
+            railTypes.add(new MutablePair<>(
+                    Item.create(railType.getIcon(), railType.getDisplayName()),
+                    railType.getIdentifier()
+            ));
         }
 
         return railTypes;

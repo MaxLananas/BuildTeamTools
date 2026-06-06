@@ -1,21 +1,21 @@
 package net.buildtheearth.buildteamtools.modules.generator.components.rail;
 
-import com.cryptomorin.xseries.XMaterial;
 import lombok.Getter;
+import org.bukkit.Material;
 import org.jspecify.annotations.Nullable;
 
 public enum RailType {
 
-    STANDARD("standard", "Standard", XMaterial.RAIL);
+    STANDARD("standard", "Standard", Material.RAIL);
 
     @Getter
     private final String identifier;
     @Getter
     private final String displayName;
     @Getter
-    private final XMaterial icon;
+    private final Material icon;
 
-    RailType(String identifier, String displayName, XMaterial icon) {
+    RailType(String identifier, String displayName, Material icon) {
         this.identifier = identifier;
         this.displayName = displayName;
         this.icon = icon;
