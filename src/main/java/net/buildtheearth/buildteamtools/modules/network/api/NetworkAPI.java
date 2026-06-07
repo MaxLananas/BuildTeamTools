@@ -196,8 +196,7 @@ public class NetworkAPI {
                                     continent = Continent.getByLabel((String) regionObject.get("subregion"));
                                 if (continent == Continent.OTHER) {
                                     continent = Continent.getByLabel((String) teamObject.get("Continent"));
-                                    BuildTeamTools.getInstance().getComponentLogger().debug("Continent " + regionObject.get("region") + " and " +
-                                            regionObject.get("subregion") + " for region " + regionName + " is not supported by BuildTeamTools. Falling back to buildteam " + buildTeam.getName() + " continent " + continent.getLabel());
+                                    BuildTeamTools.getInstance().getComponentLogger().debug("Continent {} and {} for region {} is not supported by BuildTeamTools. Falling back to buildteam {} continent {}", regionObject.get("region"), regionObject.get("subregion"), regionName, buildTeam.getName(), continent.getLabel());
                                 }
 
                                 region = new Region(regionName, continent, buildTeam, headBase64, area, regionCodeCca2, regionCodeCca3);
