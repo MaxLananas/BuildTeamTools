@@ -57,49 +57,28 @@ public class GeneratorCollections {
             if (!myFile.exists())
                 return installGeneratorCollections(p, false);
 
-            Clipboard clipboard = null;
+            boolean clipboardLoaded;
 
             // For FastAsyncWorldEdit
             if(CommonModule.getInstance().getDependencyComponent().isFastAsyncWorldEditEnabled()) {
-                clipboard = loadClipboard(myFile);
+                clipboardLoaded = canLoadClipboard(myFile);
 
             // For Legacy WorldEdit
             }else if(CommonModule.getInstance().getDependencyComponent().isLegacyWorldEdit()) {
-                Class<?> formatClass = ClipboardFormat.class;
-                Method findByFile = formatClass.getMethod("findByFile", File.class);
-                Method getReader = ClipboardFormat.class.getMethod("getReader", InputStream.class);
-
-                ClipboardFormat format = (ClipboardFormat) findByFile.invoke(null, myFile);
-                ClipboardReader reader = null;
-
-                if (format != null)
-                    reader = (ClipboardReader) getReader.invoke(format, Files.newInputStream(myFile.toPath()));
-
-                BukkitWorld bukkitWorld;
-                if(p != null)
-                    bukkitWorld = new BukkitWorld(p.getWorld());
-                else
-                    bukkitWorld = new BukkitWorld(Bukkit.getWorlds().getFirst());
-
-                if (reader != null){
-                    Class<?> readerClass = reader.getClass();
-                    Method read = readerClass.getMethod("read", Class.forName("com.sk89q.worldedit.world.registry.WorldData"));
-
-                    Method getWorldDataMethod = bukkitWorld.getClass().getMethod("getWorldData");
-                    Object worldData = getWorldDataMethod.invoke(bukkitWorld);
-
-                    clipboard = (Clipboard) read.invoke(reader, worldData);
-                }
+                clipboardLoaded = canLoadLegacyClipboard(myFile, p);
 
             // For latest WorldEdit
             }else if(CommonModule.getInstance().getDependencyComponent().isWorldEditEnabled()) {
 
-                clipboard = loadClipboard(myFile);
+                clipboardLoaded = canLoadClipboard(myFile);
 
             }else{
                 return false;
             }
-            if (!foundFile)
+
+
+
+            if(!clipboardLoaded)
                 return installGeneratorCollections(p, false);
             else
                 return checkIfGeneratorCollectionsIsUpToDate(p);
@@ -109,14 +88,49 @@ public class GeneratorCollections {
         }
     }
 
-    private static @Nullable Clipboard loadClipboard(File file) throws IOException {
+    private static boolean canLoadClipboard(File file) throws IOException {
         ClipboardFormat format = ClipboardFormats.findByFile(file);
 
         if (format == null)
-            return null;
+            return false;
 
-        try (ClipboardReader reader = format.getReader(Files.newInputStream(file.toPath()))) {
-            return reader.read();
+        try (InputStream inputStream = Files.newInputStream(file.toPath());
+             ClipboardReader reader = format.getReader(inputStream);
+             Clipboard clipboard = reader.read()) {
+            return clipboard != null;
+        }
+    }
+
+    private static boolean canLoadLegacyClipboard(File file, @Nullable Player player) throws Exception {
+        Class<?> formatClass = ClipboardFormat.class;
+        Method findByFile = formatClass.getMethod("findByFile", File.class);
+        Method getReader = ClipboardFormat.class.getMethod("getReader", InputStream.class);
+
+        ClipboardFormat format = (ClipboardFormat) findByFile.invoke(null, file);
+
+        if (format == null)
+            return false;
+
+        BukkitWorld bukkitWorld;
+        if(player != null)
+            bukkitWorld = new BukkitWorld(player.getWorld());
+        else
+            bukkitWorld = new BukkitWorld(Bukkit.getWorlds().getFirst());
+
+        try (InputStream inputStream = Files.newInputStream(file.toPath());
+             ClipboardReader reader = (ClipboardReader) getReader.invoke(format, inputStream)) {
+            if (reader == null)
+                return false;
+
+            Class<?> readerClass = reader.getClass();
+            Method read = readerClass.getMethod("read", Class.forName("com.sk89q.worldedit.world.registry.WorldData"));
+
+            Method getWorldDataMethod = bukkitWorld.getClass().getMethod("getWorldData");
+            Object worldData = getWorldDataMethod.invoke(bukkitWorld);
+
+            try (Clipboard clipboard = (Clipboard) read.invoke(reader, worldData)) {
+                return clipboard != null;
+            }
         }
     }
 

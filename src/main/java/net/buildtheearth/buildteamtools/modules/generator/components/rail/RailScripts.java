@@ -118,9 +118,7 @@ public class RailScripts extends Script {
         adjustCenterPathToTerrain();
         railType = getRailType();
 
-        if (!hasValidCenterPath()) return false;
-
-        return true;
+        return hasValidCenterPath();
     }
 
     private void railScript_v_2_0() {

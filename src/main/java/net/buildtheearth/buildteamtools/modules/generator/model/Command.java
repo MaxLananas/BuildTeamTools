@@ -11,6 +11,9 @@ import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import lombok.Getter;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
 import net.buildtheearth.buildteamtools.modules.generator.listeners.GeneratorListener;
@@ -98,10 +101,7 @@ public class Command {
 
         percentage = (int) Math.round((double) (totalCommands - operations.size()) / (double) totalCommands * 100);
 
-        if (!breakPointActive && !threadActive)
-            player.sendActionBar("§a§lGenerator Progress: §7" + percentage + "%");
-        else
-            player.sendActionBar("§e§lGenerator Progress: §7" + percentage + "%");
+        sendProgressActionBar(!breakPointActive && !threadActive ? NamedTextColor.GREEN : NamedTextColor.YELLOW);
 
         if (threadActive)
             return;
@@ -347,12 +347,21 @@ public class Command {
     }
 
     private void sendFailureActionBar() {
+        Component message = Component.text("Generator failed.", NamedTextColor.RED, TextDecoration.BOLD);
+
         if (Bukkit.isPrimaryThread()) {
-            player.sendActionBar("Â§cÂ§lGenerator failed.");
+            player.sendActionBar(message);
             return;
         }
 
-        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> player.sendActionBar("Â§cÂ§lGenerator failed."));
+        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> player.sendActionBar(message));
+    }
+
+    private void sendProgressActionBar(NamedTextColor color) {
+        player.sendActionBar(Component.text()
+                .append(Component.text("Generator Progress: ", color, TextDecoration.BOLD))
+                .append(Component.text(percentage + "%", NamedTextColor.GRAY))
+                .build());
     }
 
     private void runInternalGeneratorCommand(String command) {
@@ -398,7 +407,8 @@ public class Command {
 
     /** Called when the command queue is finished. */
     public void finish() {
-        player.sendActionBar("§a§lGenerator Progress: §7100%");
+        percentage = 100;
+        sendProgressActionBar(NamedTextColor.GREEN);
         isFinished = true;
         generatorComponent.sendSuccessMessage(player);
     }
