@@ -1,6 +1,9 @@
 package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import com.alpsbte.alpslib.utils.ChatHelper;
+import com.sk89q.worldedit.bukkit.BukkitWorld;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import lombok.experimental.UtilityClass;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
@@ -54,12 +57,47 @@ public class GeneratorCollections {
             if (!myFile.exists())
                 return installGeneratorCollections(p, false);
 
-            var format = ClipboardFormats.findByFile(myFile);
-            boolean foundFile = false;
-            if (format != null) {
-                try (var ignored = format.load(myFile)) {
-                    foundFile = true;
+            Clipboard clipboard = null;
+
+            // For FastAsyncWorldEdit
+            if(CommonModule.getInstance().getDependencyComponent().isFastAsyncWorldEditEnabled()) {
+                clipboard = loadClipboard(myFile);
+
+            // For Legacy WorldEdit
+            }else if(CommonModule.getInstance().getDependencyComponent().isLegacyWorldEdit()) {
+                Class<?> formatClass = ClipboardFormat.class;
+                Method findByFile = formatClass.getMethod("findByFile", File.class);
+                Method getReader = ClipboardFormat.class.getMethod("getReader", InputStream.class);
+
+                ClipboardFormat format = (ClipboardFormat) findByFile.invoke(null, myFile);
+                ClipboardReader reader = null;
+
+                if (format != null)
+                    reader = (ClipboardReader) getReader.invoke(format, Files.newInputStream(myFile.toPath()));
+
+                BukkitWorld bukkitWorld;
+                if(p != null)
+                    bukkitWorld = new BukkitWorld(p.getWorld());
+                else
+                    bukkitWorld = new BukkitWorld(Bukkit.getWorlds().getFirst());
+
+                if (reader != null){
+                    Class<?> readerClass = reader.getClass();
+                    Method read = readerClass.getMethod("read", Class.forName("com.sk89q.worldedit.world.registry.WorldData"));
+
+                    Method getWorldDataMethod = bukkitWorld.getClass().getMethod("getWorldData");
+                    Object worldData = getWorldDataMethod.invoke(bukkitWorld);
+
+                    clipboard = (Clipboard) read.invoke(reader, worldData);
                 }
+
+            // For latest WorldEdit
+            }else if(CommonModule.getInstance().getDependencyComponent().isWorldEditEnabled()) {
+
+                clipboard = loadClipboard(myFile);
+
+            }else{
+                return false;
             }
             if (!foundFile)
                 return installGeneratorCollections(p, false);
@@ -68,6 +106,17 @@ public class GeneratorCollections {
         } catch (Exception e) {
             BuildTeamTools.getInstance().getComponentLogger().warn("Failed to check if Generator Collections is installed:", e);
             return installGeneratorCollections(p, true);
+        }
+    }
+
+    private static @Nullable Clipboard loadClipboard(File file) throws IOException {
+        ClipboardFormat format = ClipboardFormats.findByFile(file);
+
+        if (format == null)
+            return null;
+
+        try (ClipboardReader reader = format.getReader(Files.newInputStream(file.toPath()))) {
+            return reader.read();
         }
     }
 

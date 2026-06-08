@@ -68,6 +68,7 @@ public class Command {
     private RegionSelector tempRegionSelector;
     private Material oldMaterial;
     private BlockData oldBlockData;
+    private boolean failed;
 
     @Getter
     private boolean isFinished;
@@ -90,7 +91,7 @@ public class Command {
     /** Processes the commands from the command queue to prevent the server from freezing. */
     public void tick() {
         if (operations.isEmpty()) {
-            if (!isFinished)
+            if (!isFinished && !failed)
                 finish();
             return;
         }
@@ -108,7 +109,7 @@ public class Command {
         // Process commands in batches of MAX_COMMANDS_PER_SERVER_TICK
         for (int i = 0; i < MAX_COMMANDS_PER_SERVER_TICK;) {
             if (operations.isEmpty()) {
-                if (!isFinished)
+                if (!isFinished && !failed)
                     finish();
                 break;
             }
@@ -298,8 +299,9 @@ public class Command {
             else
                 ChatHelper.logError("Error while processing command.");
 
-            e.printStackTrace();
-            sendGeneratorError();
+            ChatHelper.logError("Generator command processing failed.", e);
+            failGeneration();
+            return;
         }
 
         if (future != null) {
@@ -311,8 +313,9 @@ public class Command {
 
                 if (ex != null) {
                     ChatHelper.logError("Async operation failed: " + operation.getOperationType() + " - " + operation.getValuesAsString());
-                    ex.printStackTrace();
-                    sendGeneratorError();
+                    ChatHelper.logError("Generator async operation failed.", new Exception(ex));
+                    failGeneration();
+                    return;
                 }
 
                 // Remove the processed operation from the queue
@@ -323,6 +326,17 @@ public class Command {
         }
     }
 
+    private void failGeneration() {
+        if (isFinished)
+            return;
+
+        failed = true;
+        isFinished = true;
+        operations.clear();
+        sendGeneratorError();
+        sendFailureActionBar();
+    }
+
     private void sendGeneratorError() {
         if (Bukkit.isPrimaryThread()) {
             generatorComponent.sendError(player);
@@ -330,6 +344,15 @@ public class Command {
         }
 
         Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> generatorComponent.sendError(player));
+    }
+
+    private void sendFailureActionBar() {
+        if (Bukkit.isPrimaryThread()) {
+            player.sendActionBar("Â§cÂ§lGenerator failed.");
+            return;
+        }
+
+        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> player.sendActionBar("Â§cÂ§lGenerator failed."));
     }
 
     private void runInternalGeneratorCommand(String command) {

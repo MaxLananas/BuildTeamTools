@@ -13,7 +13,13 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class Rail extends GeneratorComponent {
+
+    private final Set<UUID> preparingPlayers = ConcurrentHashMap.newKeySet();
 
     public Rail() {
         super(GeneratorType.RAIL);
@@ -43,9 +49,24 @@ public class Rail extends GeneratorComponent {
 
     @Override
     public void generate(Player player) {
-        if (!GeneratorModule.getInstance().getRail().checkForPlayer(player))
+        if (GeneratorModule.getInstance().isGenerating(player) || !preparingPlayers.add(player.getUniqueId())) {
+            sendAlreadyGeneratingMessage(player);
             return;
+        }
 
-        new RailScripts(player, this);
+        if (!GeneratorModule.getInstance().getRail().checkForPlayer(player)) {
+            preparingPlayers.remove(player.getUniqueId());
+            return;
+        }
+
+        new RailScripts(player, this, () -> preparingPlayers.remove(player.getUniqueId()));
+    }
+
+    private void sendAlreadyGeneratingMessage(Player player) {
+        player.sendMessage(Component.text(
+                "Rail Generator is already running. Please wait until the current generation is finished.",
+                NamedTextColor.RED
+        ));
+        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0F, 1.0F);
     }
 }

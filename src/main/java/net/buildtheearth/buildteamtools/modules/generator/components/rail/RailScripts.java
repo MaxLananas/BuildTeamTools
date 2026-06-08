@@ -29,8 +29,10 @@ import java.util.Set;
 public class RailScripts extends Script {
 
     private static final int MAX_CONTROL_POINTS = 250;
-    private static final int MAX_PATH_POINTS = 20_000;
-    private static final int MAX_BLOCK_PLACEMENTS = 100_000;
+    private static final int MAX_PATH_POINTS = 6_000;
+    private static final int MAX_BLOCK_PLACEMENTS = 30_000;
+    private static final long MAX_PREPARED_REGION_VOLUME = 300_000L;
+    private static final int MAX_PREPARED_REGION_AXIS_LENGTH = 512;
     private static final int SELECTION_PADDING = 4;
     private static final int SELECTION_VERTICAL_PADDING = 12;
     private static final int PREPARE_SELECTION_EXPANSION = 8;
@@ -47,11 +49,18 @@ public class RailScripts extends Script {
     private List<Vector> controlPoints = new ArrayList<>();
     private List<Vector> centerPath = new ArrayList<>();
     private RailType railType = RailType.STANDARD;
+    private final Runnable preparationFinishedCallback;
 
     public RailScripts(Player player, GeneratorComponent generatorComponent) {
-        super(player, generatorComponent);
+        this(player, generatorComponent, () -> {
+        });
+    }
 
-        sendRailInfo("Rail Generator is preparing your selection...");
+    public RailScripts(Player player, GeneratorComponent generatorComponent, Runnable preparationFinishedCallback) {
+        super(player, generatorComponent);
+        this.preparationFinishedCallback = preparationFinishedCallback;
+
+        sendRailInfo("Rail Generator is validating your selection...");
 
         Bukkit.getScheduler().runTaskAsynchronously(BuildTeamTools.getInstance(), () -> {
             try {
@@ -61,6 +70,8 @@ public class RailScripts extends Script {
             } catch (Exception exception) {
                 Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> getGeneratorComponent().sendError(getPlayer()));
                 ChatHelper.logError("Rail Generator failed while preparing or generating.", exception);
+            } finally {
+                this.preparationFinishedCallback.run();
             }
         });
     }
@@ -71,11 +82,24 @@ public class RailScripts extends Script {
         if (!hasValidControlPoints()) return false;
 
         List<Vector> railSelectionPoints = createRailSelectionPoints(controlPoints);
+        centerPath = createCenterPath(controlPoints);
+
+        if (!hasValidCenterPath()) return false;
+
+        if (!hasSafeEstimatedBlockCount(centerPath)) return false;
+
+        int selectionMinY = getSelectionMinY(controlPoints);
+        int selectionMaxY = getSelectionMaxY(controlPoints);
+
+        if (!hasSafePreparedSelection(railSelectionPoints, selectionMinY, selectionMaxY)) return false;
+
+        sendRailInfo("Rail Generator is preparing terrain data...");
+
         GeneratorUtils.createPolySelection(
                 getPlayer(),
                 railSelectionPoints,
-                getSelectionMinY(controlPoints),
-                getSelectionMaxY(controlPoints)
+                selectionMinY,
+                selectionMaxY
         );
 
         blocks = GeneratorUtils.prepareScriptSession(
@@ -94,26 +118,25 @@ public class RailScripts extends Script {
         adjustCenterPathToTerrain();
         railType = getRailType();
 
+        if (!hasValidCenterPath()) return false;
+
         return true;
     }
 
     private void railScript_v_2_0() {
-        if (centerPath.size() < 2) {
-            sendRailError("Rail Generator could not create a valid rail path.");
+        if (!hasValidCenterPath())
             return;
-        }
-
-        if (centerPath.size() > MAX_PATH_POINTS) {
-            sendRailError("Rail Generator path is too large. Please use a smaller selection.");
-            return;
-        }
 
         Map<PositionKey, BlockState> railBlocks = buildRailBlocks(centerPath);
 
         if (railBlocks.size() > MAX_BLOCK_PLACEMENTS) {
-            sendRailError("Rail Generator would place too many blocks. Please use a smaller selection.");
+            sendRailError("Rail Generator would place " + railBlocks.size() + " blocks. The limit is "
+                    + MAX_BLOCK_PLACEMENTS + ". Split the rail into smaller selections.");
             return;
         }
+
+        sendRailInfo("Rail Generator queued " + railBlocks.size() + " block changes over "
+                + centerPath.size() + " path points. Watch the action bar for progress.");
 
         setBlockStatesAtPositions(
                 railBlocks.keySet().stream().map(PositionKey::toVector).toList(),
@@ -131,6 +154,68 @@ public class RailScripts extends Script {
 
         if (controlPoints.size() > MAX_CONTROL_POINTS) {
             sendRailError("Rail Generator has too many points. Please use fewer points.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean hasValidCenterPath() {
+        if (centerPath.size() < 2) {
+            sendRailError("Rail Generator could not create a valid rail path. Select at least two different blocks.");
+            return false;
+        }
+
+        if (centerPath.size() > MAX_PATH_POINTS) {
+            sendRailError("Rail Generator path has " + centerPath.size() + " points. The limit is "
+                    + MAX_PATH_POINTS + ". Split the rail into smaller selections.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean hasSafeEstimatedBlockCount(List<Vector> path) {
+        long estimatedBlocks = (long) path.size() * 5L;
+
+        if (estimatedBlocks <= MAX_BLOCK_PLACEMENTS)
+            return true;
+
+        sendRailError("Rail Generator would likely place too many blocks. Split the rail into smaller selections.");
+        return false;
+    }
+
+    private boolean hasSafePreparedSelection(List<Vector> selectionPoints, int minY, int maxY) {
+        if (selectionPoints.size() < 2) {
+            sendRailError("Rail Generator could not create a safe preparation selection.");
+            return false;
+        }
+
+        int minX = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+
+        for (Vector point : selectionPoints) {
+            minX = Math.min(minX, point.getBlockX());
+            minZ = Math.min(minZ, point.getBlockZ());
+            maxX = Math.max(maxX, point.getBlockX());
+            maxZ = Math.max(maxZ, point.getBlockZ());
+        }
+
+        long width = (long) maxX - minX + 1L;
+        long height = (long) maxY - minY + 1L + PREPARE_SELECTION_EXPANSION * 2L;
+        long length = (long) maxZ - minZ + 1L;
+        long volume = width * height * length;
+
+        if (width > MAX_PREPARED_REGION_AXIS_LENGTH || length > MAX_PREPARED_REGION_AXIS_LENGTH) {
+            sendRailError("Rail Generator selection is too wide to prepare safely. Split the rail into smaller selections.");
+            return false;
+        }
+
+        if (volume > MAX_PREPARED_REGION_VOLUME) {
+            sendRailError("Rail Generator selection would prepare " + volume + " blocks. The limit is "
+                    + MAX_PREPARED_REGION_VOLUME + ". Split the rail into smaller selections.");
             return false;
         }
 
