@@ -8,6 +8,7 @@ import net.buildtheearth.buildteamtools.modules.Module;
 import net.buildtheearth.buildteamtools.modules.navigation.components.bluemap.BluemapComponent;
 import net.buildtheearth.buildteamtools.modules.navigation.components.navigator.NavigatorComponent;
 import net.buildtheearth.buildteamtools.modules.navigation.components.navigator.commands.BuildteamCommand;
+import net.buildtheearth.buildteamtools.modules.navigation.components.navigator.commands.ExploreCommand;
 import net.buildtheearth.buildteamtools.modules.navigation.components.navigator.commands.NavigatorCommand;
 import net.buildtheearth.buildteamtools.modules.navigation.components.navigator.listeners.NavigatorJoinListener;
 import net.buildtheearth.buildteamtools.modules.navigation.components.navigator.listeners.NavigatorOpenListener;
@@ -113,6 +114,10 @@ public class NavigationModule extends Module {
             bluemapComponent = new BluemapComponent();
         }
 
+        if (BuildTeamTools.getInstance().getConfig(ConfigUtil.NAVIGATION).getBoolean(ConfigPaths.Navigation.NAVIGATOR_ITEM_ENABLED, false)) {
+            registerListeners(new NavigatorJoinListener(), new NavigatorOpenListener());
+        }
+
         super.enable();
     }
 
@@ -122,6 +127,7 @@ public class NavigationModule extends Module {
         registerCommand("navigator", new NavigatorCommand());
         registerCommand("buildteam", new BuildteamCommand());
         registerCommand("warpsbt", new WarpsBtCommand());
+        registerCommand("explore", new ExploreCommand());
     }
 
     @Override
@@ -129,9 +135,7 @@ public class NavigationModule extends Module {
         super.registerListeners(
                 new TpllJoinListener(),
                 new TpllListener(),
-                new WarpJoinListener(),
-                new NavigatorJoinListener(),
-                new NavigatorOpenListener()
+                new WarpJoinListener()
         );
     }
 }
