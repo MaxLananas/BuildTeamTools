@@ -194,10 +194,6 @@ public class NetworkAPI {
                                 continent = Continent.getByLabel((String) regionObject.get("region"));
                                 if (continent == Continent.OTHER)
                                     continent = Continent.getByLabel((String) regionObject.get("subregion"));
-                                if (continent == Continent.OTHER) {
-                                    continent = Continent.getByLabel((String) teamObject.get("Continent"));
-                                    BuildTeamTools.getInstance().getComponentLogger().debug("Continent {} and {} for region {} is not supported by BuildTeamTools. Falling back to buildteam {} continent {}", regionObject.get("region"), regionObject.get("subregion"), regionName, buildTeam.getName(), continent.getLabel());
-                                }
 
                                 region = new Region(regionName, continent, buildTeam, headBase64, area, regionCodeCca2, regionCodeCca3);
                             } else {
@@ -319,6 +315,7 @@ public class NetworkAPI {
         API.putAsync("https://nwapi.buildtheearth.net/api/teams/" + apiKey + "/warpgroups", requestBody, callback);
     }
 
+    @SuppressWarnings("unchecked")
     public static void deleteWarp(Warp warp, API.ApiResponseCallback callback) {
         String apiKey = BuildTeamTools.getInstance().getConfig().getString(ConfigPaths.API_KEY);
 
@@ -331,6 +328,7 @@ public class NetworkAPI {
         API.deleteAsync("https://nwapi.buildtheearth.net/api/teams/" + apiKey + "/warps", requestBody, callback);
     }
 
+    @SuppressWarnings("unchecked")
     public static void deleteWarpGroup(WarpGroup warpGroup, API.ApiResponseCallback callback) {
         String apiKey = BuildTeamTools.getInstance().getConfig().getString(ConfigPaths.API_KEY);
 
@@ -342,8 +340,10 @@ public class NetworkAPI {
         API.deleteAsync("https://nwapi.buildtheearth.net/api/teams/" + apiKey + "/warpgroups", requestBody, callback);
     }
 
+    @SuppressWarnings("unchecked")
     public static void syncPlayerList() {
-        if (NetworkModule.getInstance().getBuildTeam().isConnected())
+        BuildTeam buildTeam = NetworkModule.getInstance().getBuildTeam();
+        if (buildTeam != null && buildTeam.isConnected())
             return;
 
         String apiKey = BuildTeamTools.getInstance().getConfig().getString(ConfigPaths.API_KEY);

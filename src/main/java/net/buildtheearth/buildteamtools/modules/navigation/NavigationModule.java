@@ -65,7 +65,7 @@ public class NavigationModule extends Module {
 
     @Override
     public void enable() {
-        if(NetworkModule.getInstance().getBuildTeam() == null) {
+        if (NetworkModule.getInstance().getBuildTeam() == null) {
             shutdown("The Network Module failed to load the Build Team.");
             return;
         }
