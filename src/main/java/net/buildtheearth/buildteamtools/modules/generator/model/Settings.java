@@ -88,7 +88,7 @@ public abstract class Settings {
                     valueStr = new StringBuilder(((CropStage) valueObject).getIdentifier());
                     break;
                 case RAIL_TYPE:
-                    value = new StringBuilder(((RailType) valueObject).getIdentifier());
+                    valueStr = new StringBuilder(((RailType) valueObject).getIdentifier());
                     break;
                 case TREE_WIDTH:
                     valueStr = new StringBuilder(((TreeWidth) valueObject).getName());
