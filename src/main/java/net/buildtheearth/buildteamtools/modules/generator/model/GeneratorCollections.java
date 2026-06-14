@@ -65,11 +65,11 @@ public class GeneratorCollections {
             if(CommonModule.getInstance().getDependencyComponent().isFastAsyncWorldEditEnabled()) {
                 clipboardLoaded = canLoadClipboard(myFile);
 
-            // For Legacy WorldEdit
+                // For Legacy WorldEdit
             }else if(CommonModule.getInstance().getDependencyComponent().isLegacyWorldEdit()) {
                 clipboardLoaded = canLoadLegacyClipboard(myFile, p);
 
-            // For latest WorldEdit
+                // For latest WorldEdit
             }else if(CommonModule.getInstance().getDependencyComponent().isWorldEditEnabled()) {
 
                 clipboardLoaded = canLoadClipboard(myFile);
@@ -103,6 +103,7 @@ public class GeneratorCollections {
         }
     }
 
+    @SuppressWarnings("JavaReflectionMemberAccess")
     private static boolean canLoadLegacyClipboard(File file, @Nullable Player player) throws Exception {
         Class<?> formatClass = ClipboardFormat.class;
         Method findByFile = formatClass.getMethod("findByFile", File.class);

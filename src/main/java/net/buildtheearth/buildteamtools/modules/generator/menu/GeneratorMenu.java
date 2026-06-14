@@ -71,7 +71,7 @@ public class GeneratorMenu extends AbstractMenu {
                 "§8Right-click for Tutorial"
         );
 
-        ItemStack houseItem = Item.create(XMaterial.BIRCH_DOOR.get(), "§cGenerate House", houseLore);
+        ItemStack houseItem = Item.create(Objects.requireNonNull(XMaterial.BIRCH_DOOR.get()), "§cGenerate House", houseLore);
         getMenu().getSlot(HOUSE_ITEM_SLOT).setItem(houseItem);
 
         ArrayList<String> roadLore = ListUtil.createList(
@@ -117,7 +117,7 @@ public class GeneratorMenu extends AbstractMenu {
                 "§8Right-click for Tutorial"
         );
 
-        ItemStack railwayItem = Item.create(XMaterial.RAIL.get(), "§9Generate Railway", railwayLore);
+        ItemStack railwayItem = Item.create(Objects.requireNonNull(XMaterial.RAIL.get()), "§9Generate Railway", railwayLore);
         getMenu().getSlot(RAIL_ITEM_SLOT).setItem(railwayItem);
 
         if (!CommonModule.getInstance().getDependencyComponent().isSchematicBrushEnabled()) {
@@ -129,7 +129,7 @@ public class GeneratorMenu extends AbstractMenu {
                     "§8Leftclick for Installation Instructions"
             );
 
-            ItemStack treeItem = Item.create(XMaterial.OAK_SAPLING.get(), "§aGenerate Tree & Forest §c(DISABLED)", treeLore);
+            ItemStack treeItem = Item.create(Objects.requireNonNull(XMaterial.OAK_SAPLING.get()), "§aGenerate Tree & Forest §c(DISABLED)", treeLore);
             getMenu().getSlot(TREE_ITEM_SLOT).setItem(treeItem);
         } else if (!GeneratorCollections.hasUpdatedGeneratorCollections(getMenuPlayer())) {
             ArrayList<String> treeLore = ListUtil.createList(
@@ -140,7 +140,7 @@ public class GeneratorMenu extends AbstractMenu {
                     "§8Leftclick for Installation Instructions"
             );
 
-            ItemStack treeItem = Item.create(XMaterial.OAK_SAPLING.get(), "§aGenerate Tree & Forest §c(DISABLED)", treeLore);
+            ItemStack treeItem = Item.create(Objects.requireNonNull(XMaterial.OAK_SAPLING.get()), "§aGenerate Tree & Forest §c(DISABLED)", treeLore);
             getMenu().getSlot(TREE_ITEM_SLOT).setItem(treeItem);
         } else {
             ArrayList<String> treeLore = ListUtil.createList(
@@ -156,7 +156,7 @@ public class GeneratorMenu extends AbstractMenu {
                     "§8Right-click for Tutorial"
             );
 
-            ItemStack treeItem = Item.create(XMaterial.OAK_SAPLING.get(), "§aGenerate Tree & Forest", treeLore);
+            ItemStack treeItem = Item.create(Objects.requireNonNull(XMaterial.OAK_SAPLING.get()), "§aGenerate Tree & Forest", treeLore);
             getMenu().getSlot(TREE_ITEM_SLOT).setItem(treeItem);
         }
 
@@ -168,7 +168,7 @@ public class GeneratorMenu extends AbstractMenu {
                 "§8If you want to help fixing ask on Dev Hub!"
         );
 
-        ItemStack fieldItem = Item.create(XMaterial.WHEAT.get(), "§6Generate Field §c(DISABLED)", fieldLore);
+        ItemStack fieldItem = Item.create(Objects.requireNonNull(XMaterial.WHEAT.get()), "§6Generate Field §c(DISABLED)", fieldLore);
         getMenu().getSlot(FIELD_ITEM_SLOT).setItem(fieldItem);
 
         super.setPreviewItems();
