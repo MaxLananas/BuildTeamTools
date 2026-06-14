@@ -21,5 +21,15 @@ disabled-modules:
 # Enable or disable the debug mode
 debug: false
 
+# Rail generator limits. Lower these if generation is too heavy for the server.
+generator:
+  rail:
+    max-control-points: 250
+    max-path-points: 6000
+    max-block-placements: 30000
+    max-prepared-region-volume: 300000
+    max-prepared-region-axis-length: 512
+    block-placement-batch-size: 1000
+
 # NOTE: Do not change
-config-version: 1.4
+config-version: 1.5

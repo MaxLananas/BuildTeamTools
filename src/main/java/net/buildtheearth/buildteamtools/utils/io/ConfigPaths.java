@@ -13,6 +13,23 @@ public abstract class ConfigPaths {
 
     public static final String DISABLED_MODULES = "disabled-modules";
 
+    public static class Generator {
+
+        private static final String GENERATOR = "generator.";
+
+        public static class Rail {
+
+            private static final String RAIL = GENERATOR + "rail.";
+
+            public static final String MAX_CONTROL_POINTS = RAIL + "max-control-points";
+            public static final String MAX_PATH_POINTS = RAIL + "max-path-points";
+            public static final String MAX_BLOCK_PLACEMENTS = RAIL + "max-block-placements";
+            public static final String MAX_PREPARED_REGION_VOLUME = RAIL + "max-prepared-region-volume";
+            public static final String MAX_PREPARED_REGION_AXIS_LENGTH = RAIL + "max-prepared-region-axis-length";
+            public static final String BLOCK_PLACEMENT_BATCH_SIZE = RAIL + "block-placement-batch-size";
+        }
+    }
+
     public static class Navigation {
 
         // Navigator.Item

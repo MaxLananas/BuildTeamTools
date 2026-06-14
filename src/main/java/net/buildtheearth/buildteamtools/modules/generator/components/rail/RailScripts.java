@@ -11,10 +11,12 @@ import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorCompone
 import net.buildtheearth.buildteamtools.modules.generator.model.Script;
 import net.buildtheearth.buildteamtools.modules.generator.model.Settings;
 import net.buildtheearth.buildteamtools.utils.MenuItems;
+import net.buildtheearth.buildteamtools.utils.io.ConfigPaths;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -28,11 +30,12 @@ import java.util.Set;
 
 public class RailScripts extends Script {
 
-    private static final int MAX_CONTROL_POINTS = 250;
-    private static final int MAX_PATH_POINTS = 6_000;
-    private static final int MAX_BLOCK_PLACEMENTS = 30_000;
-    private static final long MAX_PREPARED_REGION_VOLUME = 300_000L;
-    private static final int MAX_PREPARED_REGION_AXIS_LENGTH = 512;
+    private static final int DEFAULT_MAX_CONTROL_POINTS = 250;
+    private static final int DEFAULT_MAX_PATH_POINTS = 6_000;
+    private static final int DEFAULT_MAX_BLOCK_PLACEMENTS = 30_000;
+    private static final long DEFAULT_MAX_PREPARED_REGION_VOLUME = 300_000L;
+    private static final int DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH = 512;
+    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 1_000;
     private static final int SELECTION_PADDING = 4;
     private static final int SELECTION_VERTICAL_PADDING = 12;
     private static final int PREPARE_SELECTION_EXPANSION = 8;
@@ -49,6 +52,7 @@ public class RailScripts extends Script {
     private List<Vector> controlPoints = new ArrayList<>();
     private List<Vector> centerPath = new ArrayList<>();
     private RailType railType = RailType.STANDARD;
+    private final RailLimits limits;
     private final Runnable preparationFinishedCallback;
 
     public RailScripts(Player player, GeneratorComponent generatorComponent) {
@@ -58,20 +62,24 @@ public class RailScripts extends Script {
 
     public RailScripts(Player player, GeneratorComponent generatorComponent, Runnable preparationFinishedCallback) {
         super(player, generatorComponent);
+        this.limits = RailLimits.fromConfig();
         this.preparationFinishedCallback = preparationFinishedCallback;
 
         sendRailInfo("Rail Generator is validating your selection...");
 
         Bukkit.getScheduler().runTaskAsynchronously(BuildTeamTools.getInstance(), () -> {
+            boolean queuedGeneration = false;
+
             try {
                 if (!prepareSession()) return;
 
-                railScript_v_2_0();
+                queuedGeneration = railScript_v_2_0();
             } catch (Exception exception) {
-                Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> getGeneratorComponent().sendError(getPlayer()));
+                runOnMainThread(() -> getGeneratorComponent().sendError(getPlayer()));
                 ChatHelper.logError("Rail Generator failed while preparing or generating.", exception);
             } finally {
-                this.preparationFinishedCallback.run();
+                if (!queuedGeneration)
+                    runOnMainThread(preparationFinishedCallback);
             }
         });
     }
@@ -121,27 +129,53 @@ public class RailScripts extends Script {
         return hasValidCenterPath();
     }
 
-    private void railScript_v_2_0() {
+    private boolean railScript_v_2_0() {
         if (!hasValidCenterPath())
-            return;
+            return false;
 
         Map<PositionKey, BlockState> railBlocks = buildRailBlocks(centerPath);
 
-        if (railBlocks.size() > MAX_BLOCK_PLACEMENTS) {
+        if (railBlocks.size() > limits.maxBlockPlacements()) {
             sendRailError("Rail Generator would place " + railBlocks.size() + " blocks. The limit is "
-                    + MAX_BLOCK_PLACEMENTS + ". Split the rail into smaller selections.");
-            return;
+                    + limits.maxBlockPlacements() + ". Split the rail into smaller selections.");
+            return false;
         }
 
         sendRailInfo("Rail Generator queued " + railBlocks.size() + " block changes over "
                 + centerPath.size() + " path points. Watch the action bar for progress.");
 
-        setBlockStatesAtPositions(
-                railBlocks.keySet().stream().map(PositionKey::toVector).toList(),
-                new ArrayList<>(railBlocks.values())
-        );
+        queueRailBlockPlacements(railBlocks);
+        finishOnMainThread();
+        return true;
+    }
 
-        finish(blocks, getRestoreSelectionPoints());
+    private void queueRailBlockPlacements(Map<PositionKey, BlockState> railBlocks) {
+        List<Vector> positions = new ArrayList<>(limits.blockPlacementBatchSize());
+        List<BlockState> blockStates = new ArrayList<>(limits.blockPlacementBatchSize());
+
+        for (Map.Entry<PositionKey, BlockState> entry : railBlocks.entrySet()) {
+            positions.add(entry.getKey().toVector());
+            blockStates.add(entry.getValue());
+
+            if (positions.size() == limits.blockPlacementBatchSize()) {
+                setBlockStatesAtPositions(new ArrayList<>(positions), new ArrayList<>(blockStates));
+                positions.clear();
+                blockStates.clear();
+            }
+        }
+
+        if (!positions.isEmpty())
+            setBlockStatesAtPositions(positions, blockStates);
+    }
+
+    private void finishOnMainThread() {
+        runOnMainThread(() -> {
+            try {
+                finish(blocks, getRestoreSelectionPoints());
+            } finally {
+                preparationFinishedCallback.run();
+            }
+        });
     }
 
     private boolean hasValidControlPoints() {
@@ -150,7 +184,7 @@ public class RailScripts extends Script {
             return false;
         }
 
-        if (controlPoints.size() > MAX_CONTROL_POINTS) {
+        if (controlPoints.size() > limits.maxControlPoints()) {
             sendRailError("Rail Generator has too many points. Please use fewer points.");
             return false;
         }
@@ -164,9 +198,9 @@ public class RailScripts extends Script {
             return false;
         }
 
-        if (centerPath.size() > MAX_PATH_POINTS) {
+        if (centerPath.size() > limits.maxPathPoints()) {
             sendRailError("Rail Generator path has " + centerPath.size() + " points. The limit is "
-                    + MAX_PATH_POINTS + ". Split the rail into smaller selections.");
+                    + limits.maxPathPoints() + ". Split the rail into smaller selections.");
             return false;
         }
 
@@ -176,7 +210,7 @@ public class RailScripts extends Script {
     private boolean hasSafeEstimatedBlockCount(List<Vector> path) {
         long estimatedBlocks = (long) path.size() * 5L;
 
-        if (estimatedBlocks <= MAX_BLOCK_PLACEMENTS)
+        if (estimatedBlocks <= limits.maxBlockPlacements())
             return true;
 
         sendRailError("Rail Generator would likely place too many blocks. Split the rail into smaller selections.");
@@ -206,14 +240,14 @@ public class RailScripts extends Script {
         long length = (long) maxZ - minZ + 1L;
         long volume = width * height * length;
 
-        if (width > MAX_PREPARED_REGION_AXIS_LENGTH || length > MAX_PREPARED_REGION_AXIS_LENGTH) {
+        if (width > limits.maxPreparedRegionAxisLength() || length > limits.maxPreparedRegionAxisLength()) {
             sendRailError("Rail Generator selection is too wide to prepare safely. Split the rail into smaller selections.");
             return false;
         }
 
-        if (volume > MAX_PREPARED_REGION_VOLUME) {
+        if (volume > limits.maxPreparedRegionVolume()) {
             sendRailError("Rail Generator selection would prepare " + volume + " blocks. The limit is "
-                    + MAX_PREPARED_REGION_VOLUME + ". Split the rail into smaller selections.");
+                    + limits.maxPreparedRegionVolume() + ". Split the rail into smaller selections.");
             return false;
         }
 
@@ -221,17 +255,24 @@ public class RailScripts extends Script {
     }
 
     private void sendRailInfo(String message) {
-        Bukkit.getScheduler().runTask(
-                BuildTeamTools.getInstance(),
-                () -> getPlayer().sendMessage(Component.text(message, NamedTextColor.YELLOW))
-        );
+        sendRailMessage(Component.text(message, NamedTextColor.YELLOW));
     }
 
     private void sendRailError(String message) {
-        Bukkit.getScheduler().runTask(
-                BuildTeamTools.getInstance(),
-                () -> getPlayer().sendMessage(Component.text(message, NamedTextColor.RED))
-        );
+        sendRailMessage(Component.text(message, NamedTextColor.RED));
+    }
+
+    private void sendRailMessage(Component message) {
+        runOnMainThread(() -> getPlayer().sendMessage(message));
+    }
+
+    private void runOnMainThread(Runnable runnable) {
+        if (Bukkit.isPrimaryThread()) {
+            runnable.run();
+            return;
+        }
+
+        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), runnable);
     }
 
     private List<Vector> getControlPoints() {
@@ -511,6 +552,37 @@ public class RailScripts extends Script {
 
         Object value = railSettings.getValues().get(RailFlag.RAIL_TYPE);
         return value instanceof RailType selectedRailType ? selectedRailType : RailType.STANDARD;
+    }
+
+    private record RailLimits(
+            int maxControlPoints,
+            int maxPathPoints,
+            int maxBlockPlacements,
+            long maxPreparedRegionVolume,
+            int maxPreparedRegionAxisLength,
+            int blockPlacementBatchSize
+    ) {
+
+        private static RailLimits fromConfig() {
+            FileConfiguration config = BuildTeamTools.getInstance().getConfig();
+
+            return new RailLimits(
+                    getPositiveInt(config, ConfigPaths.Generator.Rail.MAX_CONTROL_POINTS, DEFAULT_MAX_CONTROL_POINTS, 2),
+                    getPositiveInt(config, ConfigPaths.Generator.Rail.MAX_PATH_POINTS, DEFAULT_MAX_PATH_POINTS, 2),
+                    getPositiveInt(config, ConfigPaths.Generator.Rail.MAX_BLOCK_PLACEMENTS, DEFAULT_MAX_BLOCK_PLACEMENTS, 1),
+                    getPositiveLong(config, ConfigPaths.Generator.Rail.MAX_PREPARED_REGION_VOLUME, DEFAULT_MAX_PREPARED_REGION_VOLUME),
+                    getPositiveInt(config, ConfigPaths.Generator.Rail.MAX_PREPARED_REGION_AXIS_LENGTH, DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH, 1),
+                    getPositiveInt(config, ConfigPaths.Generator.Rail.BLOCK_PLACEMENT_BATCH_SIZE, DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE, 1)
+            );
+        }
+
+        private static int getPositiveInt(FileConfiguration config, String path, int fallback, int minimum) {
+            return Math.max(minimum, config.getInt(path, fallback));
+        }
+
+        private static long getPositiveLong(FileConfiguration config, String path, long fallback) {
+            return Math.max(1L, config.getLong(path, fallback));
+        }
     }
 
     private record RailStep(int dx, int dz) {
