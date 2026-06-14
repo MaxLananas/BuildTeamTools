@@ -40,6 +40,10 @@ public class RailScripts extends Script {
     private static final int SELECTION_VERTICAL_PADDING = 12;
     private static final int PREPARE_SELECTION_EXPANSION = 8;
     private static final int SURFACE_Y_OFFSET = 1;
+
+    private static final int DEFAULT_RAIL_LANE_COUNT = 1;
+    private static final int DEFAULT_RAIL_LANE_SPACING = 5;
+
     private static final Direction DEFAULT_FACING = Direction.EAST;
 
     private static final XMaterial[] CENTER_MATERIALS = new XMaterial[]{
@@ -208,7 +212,7 @@ public class RailScripts extends Script {
     }
 
     private boolean hasSafeEstimatedBlockCount(List<Vector> path) {
-        long estimatedBlocks = (long) path.size() * 5L;
+        long estimatedBlocks = (long) path.size() * getRailLaneCount() * 5L;
 
         if (estimatedBlocks <= limits.maxBlockPlacements())
             return true;
@@ -289,12 +293,17 @@ public class RailScripts extends Script {
         if (selectionLine.size() >= 2)
             selectionLine = GeneratorUtils.extendPolyLine(selectionLine);
 
-        List<Vector> shiftedPoints = GeneratorUtils.shiftPoints(selectionLine, SELECTION_PADDING, true);
+        List<Vector> shiftedPoints = GeneratorUtils.shiftPoints(selectionLine, getSelectionPadding(), true);
 
         if (shiftedPoints == null || shiftedPoints.size() < 3)
-            return GeneratorUtils.createBoundsSelectionPoints(points, SELECTION_PADDING);
+            return GeneratorUtils.createBoundsSelectionPoints(points, getSelectionPadding());
 
         return shiftedPoints;
+    }
+
+    private int getSelectionPadding() {
+        int sideLaneCount = (getRailLaneCount() - 1) / 2;
+        return SELECTION_PADDING + (getRailLaneSpacing() * sideLaneCount) + 2;
     }
 
     private List<Vector> createCenterPath(List<Vector> points) {
@@ -303,24 +312,223 @@ public class RailScripts extends Script {
 
     private Map<PositionKey, BlockState> buildRailBlocks(List<Vector> path) {
         Map<PositionKey, BlockState> railBlocks = new LinkedHashMap<>();
-        Set<PositionKey> centerPositions = getCenterPositions(path);
-        Set<ColumnKey> centerColumns = getCenterColumns(path);
+        List<List<Vector>> railCenterPaths = createRailCenterPaths(path);
+        Set<PositionKey> centerPositions = getCenterPositions(railCenterPaths);
+        Set<ColumnKey> centerColumns = getCenterColumns(railCenterPaths);
         Map<ColumnKey, RailSideBlock> sideBlocks = new LinkedHashMap<>();
 
-        for (int index = 0; index < path.size(); index++) {
-            Vector center = path.get(index);
+        for (List<Vector> railCenterPath : railCenterPaths) {
+            for (int index = 0; index < railCenterPath.size(); index++) {
+                Vector center = railCenterPath.get(index);
 
-            for (RailSidePlacement sidePlacement : getSidePlacements(path, index))
-                addSideBlock(sideBlocks, center, sidePlacement, centerPositions, centerColumns);
+                for (RailSidePlacement sidePlacement : getSidePlacements(railCenterPath, index))
+                    addSideBlock(sideBlocks, center, sidePlacement, centerPositions, centerColumns);
+            }
         }
 
         for (RailSideBlock sideBlock : sideBlocks.values())
             railBlocks.put(sideBlock.key(), createAnvilBlockState(resolveSideBlockFacing(sideBlock, sideBlocks)));
 
-        for (Vector center : path)
-            railBlocks.put(PositionKey.from(center), createCenterBlockState(center));
+        for (List<Vector> railCenterPath : railCenterPaths)
+            for (Vector center : railCenterPath)
+                railBlocks.put(PositionKey.from(center), createCenterBlockState(center));
 
         return railBlocks;
+    }
+
+    private List<List<Vector>> createRailCenterPaths(List<Vector> path) {
+        int railLaneCount = getRailLaneCount();
+
+        if (railLaneCount <= 1)
+            return List.of(path);
+
+        List<List<Vector>> railCenterPaths = new ArrayList<>();
+        int sideLaneCount = (railLaneCount - 1) / 2;
+        int laneSpacing = getRailLaneSpacing();
+
+        for (int laneIndex = sideLaneCount; laneIndex >= 1; laneIndex--) {
+            List<Vector> leftLane = createShiftedRailLane(laneIndex * laneSpacing, 1);
+
+            if (leftLane.size() >= 2)
+                railCenterPaths.add(leftLane);
+        }
+
+        railCenterPaths.add(path);
+
+        for (int laneIndex = 1; laneIndex <= sideLaneCount; laneIndex++) {
+            List<Vector> rightLane = createShiftedRailLane(laneIndex * laneSpacing, -1);
+
+            if (rightLane.size() >= 2)
+                railCenterPaths.add(rightLane);
+        }
+
+        return railCenterPaths;
+    }
+
+    private int getRailLaneCount() {
+        return DEFAULT_RAIL_LANE_COUNT;
+    }
+
+    private int getRailLaneSpacing() {
+        return DEFAULT_RAIL_LANE_SPACING;
+    }
+
+    private List<Vector> createShiftedRailLane(int distance, int sideSign) {
+        List<List<Vector>> shiftedLines = GeneratorUtils.shiftPointsAll(controlPoints, distance);
+        List<Vector> candidatePoints = flattenShiftedLines(shiftedLines);
+
+        if (candidatePoints.isEmpty())
+            return Collections.emptyList();
+
+        List<Vector> shiftedControlPoints = createShiftedControlPoints(candidatePoints, distance, sideSign);
+
+        if (shiftedControlPoints.size() < 2)
+            return Collections.emptyList();
+
+        List<Vector> shiftedPath = createCenterPath(shiftedControlPoints);
+
+        if (shiftedPath.size() < 2)
+            return Collections.emptyList();
+
+        adjustPathToTerrain(shiftedPath);
+        return shiftedPath;
+    }
+
+    private List<Vector> flattenShiftedLines(List<List<Vector>> shiftedLines) {
+        if (shiftedLines == null || shiftedLines.isEmpty())
+            return Collections.emptyList();
+
+        List<Vector> candidatePoints = new ArrayList<>();
+
+        for (List<Vector> shiftedLine : shiftedLines) {
+            if (shiftedLine == null || shiftedLine.isEmpty())
+                continue;
+
+            for (Vector point : shiftedLine) {
+                if (point != null)
+                    candidatePoints.add(point);
+            }
+        }
+
+        return candidatePoints;
+    }
+
+    private List<Vector> createShiftedControlPoints(List<Vector> candidatePoints, int distance, int sideSign) {
+        List<Vector> shiftedControlPoints = new ArrayList<>();
+
+        for (int index = 0; index < controlPoints.size(); index++) {
+            Vector basePoint = controlPoints.get(index);
+            Vector direction = getControlPointDirection(index);
+
+            if (direction.lengthSquared() == 0)
+                continue;
+
+            direction.normalize();
+
+            Vector normal = new Vector(-direction.getZ(), 0, direction.getX());
+
+            if (sideSign < 0)
+                normal.multiply(-1);
+
+            Vector shiftedPoint = getBestShiftedPoint(basePoint, normal, candidatePoints, distance);
+            addIfDifferentFromPrevious(shiftedControlPoints, shiftedPoint);
+        }
+
+        return shiftedControlPoints;
+    }
+
+    private Vector getControlPointDirection(int index) {
+        if (controlPoints.size() < 2)
+            return new Vector(0, 0, 0);
+
+        if (index == 0)
+            return getHorizontalDirection(controlPoints.get(0), controlPoints.get(1));
+
+        if (index == controlPoints.size() - 1)
+            return getHorizontalDirection(controlPoints.get(index - 1), controlPoints.get(index));
+
+        Vector previousDirection = getHorizontalDirection(controlPoints.get(index - 1), controlPoints.get(index));
+        Vector nextDirection = getHorizontalDirection(controlPoints.get(index), controlPoints.get(index + 1));
+        Vector combinedDirection = previousDirection.add(nextDirection);
+
+        if (combinedDirection.lengthSquared() != 0)
+            return combinedDirection;
+
+        if (nextDirection.lengthSquared() != 0)
+            return nextDirection;
+
+        return previousDirection;
+    }
+
+    private Vector getHorizontalDirection(Vector from, Vector to) {
+        return new Vector(
+                to.getBlockX() - from.getBlockX(),
+                0,
+                to.getBlockZ() - from.getBlockZ()
+        );
+    }
+
+    private Vector getBestShiftedPoint(Vector basePoint, Vector normal, List<Vector> candidatePoints, int distance) {
+        Vector idealPoint = getIdealShiftedPoint(basePoint, normal, distance);
+        Vector bestPoint = null;
+        double bestDistanceSquared = Double.MAX_VALUE;
+
+        for (Vector candidatePoint : candidatePoints) {
+            double signedOffset = getSignedOffset(basePoint, candidatePoint, normal);
+
+            if (signedOffset < 0.5D)
+                continue;
+
+            double distanceSquared = getHorizontalDistanceSquared(candidatePoint, idealPoint);
+
+            if (distanceSquared < bestDistanceSquared) {
+                bestDistanceSquared = distanceSquared;
+                bestPoint = candidatePoint;
+            }
+        }
+
+        double maxCandidateDistanceSquared = Math.max(16D, distance * distance * 2.25D);
+
+        if (bestPoint == null || bestDistanceSquared > maxCandidateDistanceSquared)
+            return idealPoint;
+
+        return new Vector(bestPoint.getBlockX(), basePoint.getBlockY(), bestPoint.getBlockZ());
+    }
+
+    private Vector getIdealShiftedPoint(Vector basePoint, Vector normal, int distance) {
+        return new Vector(
+                basePoint.getBlockX() + (int) Math.round(normal.getX() * distance),
+                basePoint.getBlockY(),
+                basePoint.getBlockZ() + (int) Math.round(normal.getZ() * distance)
+        );
+    }
+
+    private double getSignedOffset(Vector basePoint, Vector candidatePoint, Vector normal) {
+        double offsetX = candidatePoint.getX() - basePoint.getX();
+        double offsetZ = candidatePoint.getZ() - basePoint.getZ();
+
+        return offsetX * normal.getX() + offsetZ * normal.getZ();
+    }
+
+    private void addIfDifferentFromPrevious(List<Vector> points, Vector point) {
+        if (points.isEmpty()) {
+            points.add(point);
+            return;
+        }
+
+        Vector previousPoint = points.get(points.size() - 1);
+
+        if (previousPoint.getBlockX() == point.getBlockX() && previousPoint.getBlockZ() == point.getBlockZ())
+            return;
+
+        points.add(point);
+    }
+
+    private double getHorizontalDistanceSquared(Vector first, Vector second) {
+        double dx = first.getX() - second.getX();
+        double dz = first.getZ() - second.getZ();
+
+        return dx * dx + dz * dz;
     }
 
     private List<RailSidePlacement> getSidePlacements(List<Vector> path, int index) {
@@ -432,20 +640,22 @@ public class RailScripts extends Script {
         return preferredFacing == negativeFacing ? negativeFacing : positiveFacing;
     }
 
-    private Set<ColumnKey> getCenterColumns(List<Vector> path) {
+    private Set<ColumnKey> getCenterColumns(List<List<Vector>> railCenterPaths) {
         Set<ColumnKey> centerColumns = new HashSet<>();
 
-        for (Vector center : path)
-            centerColumns.add(ColumnKey.from(PositionKey.from(center)));
+        for (List<Vector> railCenterPath : railCenterPaths)
+            for (Vector center : railCenterPath)
+                centerColumns.add(ColumnKey.from(PositionKey.from(center)));
 
         return centerColumns;
     }
 
-    private Set<PositionKey> getCenterPositions(List<Vector> path) {
+    private Set<PositionKey> getCenterPositions(List<List<Vector>> railCenterPaths) {
         Set<PositionKey> centerPositions = new HashSet<>();
 
-        for (Vector center : path)
-            centerPositions.add(PositionKey.from(center));
+        for (List<Vector> railCenterPath : railCenterPaths)
+            for (Vector center : railCenterPath)
+                centerPositions.add(PositionKey.from(center));
 
         return centerPositions;
     }
@@ -490,6 +700,13 @@ public class RailScripts extends Script {
             point.setY(getRailSurfaceY(point.getBlockX(), point.getBlockZ(), point.getBlockY()));
     }
 
+    private void adjustPathToTerrain(List<Vector> path) {
+        if (blocks == null || path.isEmpty()) return;
+
+        for (Vector point : path)
+            point.setY(getRailSurfaceY(point.getBlockX(), point.getBlockZ(), point.getBlockY()));
+    }
+
     private int getRailSurfaceY(int x, int z, int fallbackY) {
         if (blocks == null)
             return fallbackY;
@@ -503,8 +720,6 @@ public class RailScripts extends Script {
     }
 
     private boolean hasMissingControlPointHeights(List<Vector> points) {
-        // WorldEdit polygon and convex selection points can arrive with Y=0,
-        // which means the rail should snap those points to the prepared terrain.
         for (Vector point : points)
             if (point.getBlockY() != 0) return false;
 
