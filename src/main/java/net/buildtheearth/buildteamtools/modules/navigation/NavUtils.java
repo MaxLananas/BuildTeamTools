@@ -95,7 +95,7 @@ public class NavUtils {
 
     public static @Nullable NavSwitchType determineSwitchPossibilityOrMsgPlayerIfNone(@NotNull Player player,
                                                                                       @NotNull BuildTeam targetBuildTeam) {
-        if (targetBuildTeam.isConnected() && targetBuildTeam.getServerName() != null) {
+        if (targetBuildTeam.isConnected() && targetBuildTeam.getServerName() != null && NetworkModule.getInstance().getBuildTeam() != null && NetworkModule.getInstance().getBuildTeam().isConnected()) {
             return NavSwitchType.NETWORK;
         } else if (targetBuildTeam.getIP() != null) {
             if (isTransferCapable(player, targetBuildTeam)) {
