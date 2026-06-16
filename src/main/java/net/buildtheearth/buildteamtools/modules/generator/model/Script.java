@@ -41,6 +41,12 @@ public class Script {
     @Getter
     private int changes = 0;
 
+    @Getter
+    private long progressStartPercentage = 0L;
+
+    @Getter
+    private long progressEndPercentage = 100L;
+
 
     public Script(Player player, GeneratorComponent generatorComponent) {
         this.player = player;
@@ -60,6 +66,14 @@ public class Script {
 
         GeneratorModule.getInstance().getGeneratorCommands().add(new Command(this, blocks));
         GeneratorModule.getInstance().getPlayerHistory(getPlayer()).addHistoryEntry(new HistoryEntry(getGeneratorComponent().getGeneratorType(), this));
+    }
+
+    protected void setProgressRange(long startPercentage, long endPercentage) {
+        if (startPercentage < 0L || endPercentage > 100L || startPercentage > endPercentage)
+            throw new IllegalArgumentException("Progress range must be between 0 and 100 and start before end");
+
+        this.progressStartPercentage = startPercentage;
+        this.progressEndPercentage = endPercentage;
     }
 
 

@@ -61,6 +61,9 @@ public class Command {
     private final LocalSession localSession;
 
     private final long totalProgressWeight;
+    private final long progressStartPercentage;
+    private final long progressEndPercentage;
+    private final long progressRangePercentage;
     private long completedProgressWeight;
 
     @Getter
@@ -89,6 +92,11 @@ public class Command {
         this.blocks = blocks;
 
         this.totalProgressWeight = Math.max(1L, operations.stream().mapToLong(Operation::getProgressWeight).sum());
+        this.progressStartPercentage = script.getProgressStartPercentage();
+        this.progressEndPercentage = script.getProgressEndPercentage();
+        this.progressRangePercentage = progressEndPercentage - progressStartPercentage;
+        this.percentage = progressStartPercentage;
+
         minMax = GeneratorUtils.getMinMaxPoints(getRegion());
     }
 
@@ -327,8 +335,15 @@ public class Command {
     }
 
     private long calculateProgressPercentage() {
-        long progress = Math.round((double) completedProgressWeight / (double) totalProgressWeight * 100D);
-        return operations.isEmpty() ? progress : Math.min(progress, 99L);
+        if (operations.isEmpty())
+            return progressEndPercentage;
+
+        long scaledProgress = progressStartPercentage + Math.round(
+                (double) completedProgressWeight / (double) totalProgressWeight * progressRangePercentage
+        );
+        long maxVisibleProgress = Math.max(progressStartPercentage, progressEndPercentage - 1L);
+
+        return Math.max(progressStartPercentage, Math.min(scaledProgress, maxVisibleProgress));
     }
 
     private void completeOperation(Operation operation) {
@@ -417,7 +432,7 @@ public class Command {
 
     /** Called when the command queue is finished. */
     public void finish() {
-        percentage = 100;
+        percentage = progressEndPercentage;
         sendProgressActionBar(NamedTextColor.GREEN);
         isFinished = true;
         generatorComponent.sendSuccessMessage(player);

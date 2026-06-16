@@ -18,6 +18,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -41,6 +42,25 @@ public class RailScripts extends Script {
     private static final int PREPARE_SELECTION_EXPANSION = 8;
     private static final int SURFACE_Y_OFFSET = 1;
 
+    private static final long BLOCK_PLACEMENT_START_PERCENTAGE = 95L;
+    private static final long PROGRESS_UPDATE_INTERVAL_TICKS = 4L;
+
+    private static final long CONTROL_POINTS_PROGRESS = 3L;
+    private static final long PATH_PROGRESS = 10L;
+    private static final long SAFETY_CHECK_PROGRESS = 18L;
+    private static final long TERRAIN_PREPARE_PROGRESS = 68L;
+    private static final long TERRAIN_ADJUST_PROGRESS = 78L;
+    private static final long RAIL_BLOCK_BUILD_PROGRESS = 92L;
+    private static final long QUEUE_OPERATIONS_PROGRESS = BLOCK_PLACEMENT_START_PERCENTAGE;
+
+    private static final long CONTROL_POINTS_ESTIMATED_MILLIS = 500L;
+    private static final long PATH_ESTIMATED_MILLIS = 750L;
+    private static final long SAFETY_CHECK_ESTIMATED_MILLIS = 500L;
+    private static final long TERRAIN_PREPARE_ESTIMATED_MILLIS = 4_500L;
+    private static final long TERRAIN_ADJUST_ESTIMATED_MILLIS = 1_200L;
+    private static final long RAIL_BLOCK_BUILD_ESTIMATED_MILLIS = 1_800L;
+    private static final long QUEUE_OPERATIONS_ESTIMATED_MILLIS = 300L;
+
     private static final int DEFAULT_RAIL_LANE_COUNT = 1;
     private static final int DEFAULT_RAIL_LANE_SPACING = 5;
 
@@ -58,6 +78,13 @@ public class RailScripts extends Script {
     private RailType railType = RailType.STANDARD;
     private final RailLimits limits;
     private final Runnable preparationFinishedCallback;
+    private BukkitTask preparationProgressTask;
+    private volatile long progressStageStartPercentage = 0L;
+    private volatile long progressStageEndPercentage = CONTROL_POINTS_PROGRESS;
+    private volatile long progressStageStartedAtMillis = System.currentTimeMillis();
+    private volatile long progressStageEstimatedDurationMillis = CONTROL_POINTS_ESTIMATED_MILLIS;
+    private volatile long queuedPreparationProgressPercentage = -1L;
+    private long lastPreparationProgressPercentage = -1L;
 
     public RailScripts(Player player, GeneratorComponent generatorComponent) {
         this(player, generatorComponent, () -> {
@@ -69,6 +96,8 @@ public class RailScripts extends Script {
         this.limits = RailLimits.fromConfig();
         this.preparationFinishedCallback = preparationFinishedCallback;
 
+        startRailPreparationProgressTask();
+        startRailProgressStage(0L, CONTROL_POINTS_PROGRESS, CONTROL_POINTS_ESTIMATED_MILLIS);
         sendRailInfo("Rail Generator is validating your selection...");
 
         Bukkit.getScheduler().runTaskAsynchronously(BuildTeamTools.getInstance(), () -> {
@@ -82,22 +111,30 @@ public class RailScripts extends Script {
                 runOnMainThread(() -> getGeneratorComponent().sendError(getPlayer()));
                 ChatHelper.logError("Rail Generator failed while preparing or generating.", exception);
             } finally {
-                if (!queuedGeneration)
-                    runOnMainThread(preparationFinishedCallback);
+                if (!queuedGeneration) {
+                    runOnMainThread(() -> {
+                        stopRailPreparationProgressTask();
+                        preparationFinishedCallback.run();
+                    });
+                }
             }
         });
     }
 
     private boolean prepareSession() {
         controlPoints = getControlPoints();
+        completeRailProgressStage(CONTROL_POINTS_PROGRESS);
 
         if (!hasValidControlPoints()) return false;
 
+        startRailProgressStage(CONTROL_POINTS_PROGRESS, PATH_PROGRESS, PATH_ESTIMATED_MILLIS);
         List<Vector> railSelectionPoints = createRailSelectionPoints(controlPoints);
         centerPath = createCenterPath(controlPoints);
+        completeRailProgressStage(PATH_PROGRESS);
 
         if (!hasValidCenterPath()) return false;
 
+        startRailProgressStage(PATH_PROGRESS, SAFETY_CHECK_PROGRESS, SAFETY_CHECK_ESTIMATED_MILLIS);
         if (!hasSafeEstimatedBlockCount(centerPath)) return false;
 
         int selectionMinY = getSelectionMinY(controlPoints);
@@ -105,7 +142,9 @@ public class RailScripts extends Script {
 
         if (!hasSafePreparedSelection(railSelectionPoints, selectionMinY, selectionMaxY)) return false;
 
+        completeRailProgressStage(SAFETY_CHECK_PROGRESS);
         sendRailInfo("Rail Generator is preparing terrain data...");
+        startRailProgressStage(SAFETY_CHECK_PROGRESS, TERRAIN_PREPARE_PROGRESS, TERRAIN_PREPARE_ESTIMATED_MILLIS);
 
         GeneratorUtils.createPolySelection(
                 getPlayer(),
@@ -124,11 +163,14 @@ public class RailScripts extends Script {
                 false,
                 false
         );
+        completeRailProgressStage(TERRAIN_PREPARE_PROGRESS);
 
+        startRailProgressStage(TERRAIN_PREPARE_PROGRESS, TERRAIN_ADJUST_PROGRESS, TERRAIN_ADJUST_ESTIMATED_MILLIS);
         snapMissingControlPointHeightsToTerrain(controlPoints);
         centerPath = createCenterPath(controlPoints);
         adjustCenterPathToTerrain();
         railType = getRailType();
+        completeRailProgressStage(TERRAIN_ADJUST_PROGRESS);
 
         return hasValidCenterPath();
     }
@@ -137,7 +179,9 @@ public class RailScripts extends Script {
         if (!hasValidCenterPath())
             return false;
 
+        startRailProgressStage(TERRAIN_ADJUST_PROGRESS, RAIL_BLOCK_BUILD_PROGRESS, RAIL_BLOCK_BUILD_ESTIMATED_MILLIS);
         Map<PositionKey, BlockState> railBlocks = buildRailBlocks(centerPath);
+        completeRailProgressStage(RAIL_BLOCK_BUILD_PROGRESS);
 
         if (railBlocks.size() > limits.maxBlockPlacements()) {
             sendRailError("Rail Generator would place " + railBlocks.size() + " blocks. The limit is "
@@ -148,7 +192,13 @@ public class RailScripts extends Script {
         sendRailInfo("Rail Generator queued " + railBlocks.size() + " block changes over "
                 + centerPath.size() + " path points. Watch the action bar for progress.");
 
+        startRailProgressStage(RAIL_BLOCK_BUILD_PROGRESS, QUEUE_OPERATIONS_PROGRESS, QUEUE_OPERATIONS_ESTIMATED_MILLIS);
         queueRailBlockPlacements(railBlocks);
+        completeRailProgressStage(QUEUE_OPERATIONS_PROGRESS);
+
+        setProgressRange(BLOCK_PLACEMENT_START_PERCENTAGE, 100L);
+
+        stopRailPreparationProgressTask();
         finishOnMainThread();
         return true;
     }
@@ -270,6 +320,99 @@ public class RailScripts extends Script {
         runOnMainThread(() -> getPlayer().sendMessage(message));
     }
 
+    private void startRailPreparationProgressTask() {
+        runOnMainThread(() -> {
+            if (preparationProgressTask != null)
+                return;
+
+            preparationProgressTask = Bukkit.getScheduler().runTaskTimer(
+                    BuildTeamTools.getInstance(),
+                    this::sendEstimatedRailPreparationProgress,
+                    0L,
+                    PROGRESS_UPDATE_INTERVAL_TICKS
+            );
+        });
+    }
+
+    private void stopRailPreparationProgressTask() {
+        runOnMainThread(() -> {
+            if (preparationProgressTask == null)
+                return;
+
+            preparationProgressTask.cancel();
+            preparationProgressTask = null;
+        });
+    }
+
+    private void startRailProgressStage(long startPercentage, long endPercentage, long estimatedDurationMillis) {
+        progressStageStartPercentage = clampProgressPercentage(startPercentage);
+        progressStageEndPercentage = clampProgressPercentage(endPercentage);
+        progressStageStartedAtMillis = System.currentTimeMillis();
+        progressStageEstimatedDurationMillis = Math.max(1L, estimatedDurationMillis);
+        sendRailPreparationProgress(progressStageStartPercentage);
+    }
+
+    private void completeRailProgressStage(long percentage) {
+        sendRailPreparationProgress(percentage);
+    }
+
+    private void sendEstimatedRailPreparationProgress() {
+        long stageStartPercentage = progressStageStartPercentage;
+        long stageEndPercentage = progressStageEndPercentage;
+
+        if (stageEndPercentage <= stageStartPercentage)
+            return;
+
+        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - progressStageStartedAtMillis);
+        double progress = Math.min(0.98D, (double) elapsedMillis / (double) progressStageEstimatedDurationMillis);
+        long estimatedPercentage = stageStartPercentage + (long) Math.floor(progress * (stageEndPercentage - stageStartPercentage));
+
+        if (estimatedPercentage >= stageEndPercentage)
+            estimatedPercentage = stageEndPercentage - 1L;
+
+        sendRailPreparationProgress(estimatedPercentage);
+    }
+
+    private void sendRailPreparationProgress(long percentage) {
+        long clampedPercentage = clampProgressPercentage(percentage);
+
+        if (clampedPercentage <= queuedPreparationProgressPercentage)
+            return;
+
+        queuedPreparationProgressPercentage = clampedPercentage;
+        runOnMainThread(() -> {
+            if (clampedPercentage <= lastPreparationProgressPercentage)
+                return;
+
+            lastPreparationProgressPercentage = clampedPercentage;
+            getPlayer().sendActionBar(Component.text()
+                    .append(Component.text("Generator Progress: ", NamedTextColor.YELLOW))
+                    .append(Component.text(clampedPercentage + "%", NamedTextColor.GRAY))
+                    .build());
+        });
+    }
+
+    private long clampProgressPercentage(long percentage) {
+        return Math.max(0L, Math.min(BLOCK_PLACEMENT_START_PERCENTAGE, percentage));
+    }
+
+    private long scaleProgress(int completed, int total, long startPercentage, long endPercentage) {
+        if (total <= 0)
+            return endPercentage;
+
+        double progress = Math.max(0D, Math.min(1D, (double) completed / (double) total));
+        return startPercentage + Math.round(progress * (endPercentage - startPercentage));
+    }
+
+    private int getTotalPathPointCount(List<List<Vector>> railCenterPaths) {
+        int totalPathPoints = 0;
+
+        for (List<Vector> railCenterPath : railCenterPaths)
+            totalPathPoints += railCenterPath.size();
+
+        return Math.max(1, totalPathPoints);
+    }
+
     private void runOnMainThread(Runnable runnable) {
         if (Bukkit.isPrimaryThread()) {
             runnable.run();
@@ -316,6 +459,8 @@ public class RailScripts extends Script {
         Set<PositionKey> centerPositions = getCenterPositions(railCenterPaths);
         Set<ColumnKey> centerColumns = getCenterColumns(railCenterPaths);
         Map<ColumnKey, RailSideBlock> sideBlocks = new LinkedHashMap<>();
+        int totalPathPoints = getTotalPathPointCount(railCenterPaths);
+        int processedPathPoints = 0;
 
         for (List<Vector> railCenterPath : railCenterPaths) {
             for (int index = 0; index < railCenterPath.size(); index++) {
@@ -323,15 +468,29 @@ public class RailScripts extends Script {
 
                 for (RailSidePlacement sidePlacement : getSidePlacements(railCenterPath, index))
                     addSideBlock(sideBlocks, center, sidePlacement, centerPositions, centerColumns);
+
+                processedPathPoints++;
+                sendRailPreparationProgress(scaleProgress(processedPathPoints, totalPathPoints, TERRAIN_ADJUST_PROGRESS, 86L));
             }
         }
 
-        for (RailSideBlock sideBlock : sideBlocks.values())
-            railBlocks.put(sideBlock.key(), createAnvilBlockState(resolveSideBlockFacing(sideBlock, sideBlocks)));
+        int processedSideBlocks = 0;
 
-        for (List<Vector> railCenterPath : railCenterPaths)
-            for (Vector center : railCenterPath)
+        for (RailSideBlock sideBlock : sideBlocks.values()) {
+            railBlocks.put(sideBlock.key(), createAnvilBlockState(resolveSideBlockFacing(sideBlock, sideBlocks)));
+            processedSideBlocks++;
+            sendRailPreparationProgress(scaleProgress(processedSideBlocks, sideBlocks.size(), 86L, 89L));
+        }
+
+        int processedCenterPoints = 0;
+
+        for (List<Vector> railCenterPath : railCenterPaths) {
+            for (Vector center : railCenterPath) {
                 railBlocks.put(PositionKey.from(center), createCenterBlockState(center));
+                processedCenterPoints++;
+                sendRailPreparationProgress(scaleProgress(processedCenterPoints, totalPathPoints, 89L, RAIL_BLOCK_BUILD_PROGRESS));
+            }
+        }
 
         return railBlocks;
     }
@@ -696,8 +855,11 @@ public class RailScripts extends Script {
     private void adjustCenterPathToTerrain() {
         if (blocks == null || centerPath.isEmpty()) return;
 
-        for (Vector point : centerPath)
+        for (int index = 0; index < centerPath.size(); index++) {
+            Vector point = centerPath.get(index);
             point.setY(getRailSurfaceY(point.getBlockX(), point.getBlockZ(), point.getBlockY()));
+            sendRailPreparationProgress(scaleProgress(index + 1, centerPath.size(), TERRAIN_PREPARE_PROGRESS, TERRAIN_ADJUST_PROGRESS));
+        }
     }
 
     private void adjustPathToTerrain(List<Vector> path) {
