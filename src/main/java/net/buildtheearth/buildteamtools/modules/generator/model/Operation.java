@@ -87,6 +87,19 @@ public class Operation {
         return type.cast(values.get(i));
     }
 
+    public long getProgressWeight() {
+        if (values == null)
+            return 0L;
+
+        return switch (operationType) {
+            case CUBOID_SELECTION, POLYGONAL_SELECTION, CLEAR_HISTORY, SET_GMASK, EXPAND_SELECTION, BREAKPOINT -> 0L;
+            case SET_BLOCKSTATES_AT_POSITIONS -> ((Vector[]) values.get(0)).length;
+            case REPLACE_BLOCKSTATES_WITH_MASKS -> (long) ((String[]) values.get(0)).length * (Integer) values.get(3);
+            case DRAW_CURVE_WITH_MASKS, DRAW_POLY_LINE_WITH_MASKS -> ((Vector[]) values.get(1)).length;
+            default -> 1L;
+        };
+    }
+
     public String getValuesAsString(){
         StringBuilder builder = new StringBuilder();
         for (Object value : values) {

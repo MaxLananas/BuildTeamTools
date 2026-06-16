@@ -60,7 +60,8 @@ public class Command {
     @Getter
     private final LocalSession localSession;
 
-    private final int totalCommands;
+    private final long totalProgressWeight;
+    private long completedProgressWeight;
 
     @Getter
     private long percentage;
@@ -87,7 +88,7 @@ public class Command {
         this.localSession = script.localSession;
         this.blocks = blocks;
 
-        this.totalCommands = operations.size();
+        this.totalProgressWeight = Math.max(1L, operations.stream().mapToLong(Operation::getProgressWeight).sum());
         minMax = GeneratorUtils.getMinMaxPoints(getRegion());
     }
 
@@ -99,7 +100,7 @@ public class Command {
             return;
         }
 
-        percentage = (int) Math.round((double) (totalCommands - operations.size()) / (double) totalCommands * 100);
+        percentage = calculateProgressPercentage();
 
         sendProgressActionBar(!breakPointActive && !threadActive ? NamedTextColor.GREEN : NamedTextColor.YELLOW);
 
@@ -117,7 +118,7 @@ public class Command {
             Operation command = operations.get(0);
             processOperation(command);
 
-            if (breakPointActive || threadActive)
+            if (breakPointActive || threadActive || command.getProgressWeight() > 1L)
                 break;
 
             // Skip WorldEdit commands that take no time to execute
@@ -318,12 +319,21 @@ public class Command {
                     return;
                 }
 
-                // Remove the processed operation from the queue
-                operations.removeFirst();
+                completeOperation(operation);
             });
         } else if (!breakPointActive) {
-            operations.remove(0);
+            completeOperation(operation);
         }
+    }
+
+    private long calculateProgressPercentage() {
+        long progress = Math.round((double) completedProgressWeight / (double) totalProgressWeight * 100D);
+        return operations.isEmpty() ? progress : Math.min(progress, 99L);
+    }
+
+    private void completeOperation(Operation operation) {
+        completedProgressWeight += operation.getProgressWeight();
+        operations.removeFirst();
     }
 
     private void failGeneration() {

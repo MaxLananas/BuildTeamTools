@@ -35,7 +35,7 @@ public class RailScripts extends Script {
     private static final int DEFAULT_MAX_BLOCK_PLACEMENTS = 30_000;
     private static final long DEFAULT_MAX_PREPARED_REGION_VOLUME = 300_000L;
     private static final int DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH = 512;
-    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 1_000;
+    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 250;
     private static final int SELECTION_PADDING = 4;
     private static final int SELECTION_VERTICAL_PADDING = 12;
     private static final int PREPARE_SELECTION_EXPANSION = 8;
