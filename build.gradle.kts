@@ -62,6 +62,10 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 
     maven("https://repo.bluecolored.de/releases")
+
+    maven {
+        url = uri("https://repo.essentialsx.net/releases/")
+    }
 }
 
 dependencies {
@@ -92,6 +96,9 @@ dependencies {
     compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit") { isTransitive = false }
     compileOnly(libs.paper.api)
     compileOnly(libs.bluemap.api)
+    compileOnly("net.essentialsx:EssentialsX:2.19.0") {
+        isTransitive = false
+    }
 }
 
 val versionDetails: groovy.lang.Closure<com.palantir.gradle.gitversion.VersionDetails> by extra

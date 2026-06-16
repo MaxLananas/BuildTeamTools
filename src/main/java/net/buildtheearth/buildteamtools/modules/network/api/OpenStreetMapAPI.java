@@ -2,6 +2,7 @@ package net.buildtheearth.buildteamtools.modules.network.api;
 
 import com.alpsbte.alpslib.geo.AdminLevel;
 import com.alpsbte.alpslib.utils.ChatHelper;
+import net.buildtheearth.model.GeographicalCoordinate;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.navigation.NavigationModule;
 import org.bukkit.Bukkit;
@@ -19,11 +20,11 @@ public class OpenStreetMapAPI extends API {
      * @param coordinates The latitude & longitude coordinates to get the country, region & city/town from
      * @return The country name and country code belonging to this location
      */
-    public static @NotNull CompletableFuture<String[]> getCountryFromLocationAsync(double @NotNull [] coordinates) {
+    public static @NotNull CompletableFuture<String[]> getCountryFromLocationAsync(@NotNull GeographicalCoordinate coordinates) {
         CompletableFuture<String[]> future = new CompletableFuture<>();
 
         if (NavigationModule.getInstance().isEnabled() && NavigationModule.getInstance().getRgcHandler() != null) {
-            ChatHelper.logDebug("Using custom file API to get country from location: %s, %s", coordinates[0], coordinates[1]);
+            ChatHelper.logDebug("Using custom file API to get country from location: %s, %s", coordinates.latitude(), coordinates.longitude());
 
             // If we are not on main thread, schedule lookup on main thread and complete the outer future there
             if (!Bukkit.isPrimaryThread()) {
@@ -31,7 +32,7 @@ public class OpenStreetMapAPI extends API {
                 Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> {
                     try {
                         var rgcGeoLocation = NavigationModule.getInstance().getRgcHandler()
-                                .locationFromCoordinates((float) coordinates[0], (float) coordinates[1]);
+                                .locationFromCoordinates((float) coordinates.latitude(), (float) coordinates.longitude());
                         ChatHelper.logDebug("RGC lookup successful: %s", rgcGeoLocation);
                         future.complete(new String[]{rgcGeoLocation.get(AdminLevel.COUNTRY), ""});
                     } catch (Exception ex) {
@@ -43,7 +44,7 @@ public class OpenStreetMapAPI extends API {
 
             // We're on the main thread already — run synchronously
             try {
-                var location = Objects.requireNonNull(NavigationModule.getInstance().getRgcHandler()).locationFromCoordinates((float) coordinates[0], (float) coordinates[1]);
+                var location = Objects.requireNonNull(NavigationModule.getInstance().getRgcHandler()).locationFromCoordinates((float) coordinates.latitude(), (float) coordinates.longitude());
                 ChatHelper.logDebug("RGC lookup successful: %s", location);
                 future.complete(new String[]{location.get(AdminLevel.COUNTRY), ""});
             } catch (Exception ex) {
@@ -52,7 +53,7 @@ public class OpenStreetMapAPI extends API {
             return future;
         }
 
-        String url = "https://photon.komoot.io/reverse?lat=" + coordinates[0] + "&lon=" + coordinates[1] + "&lang=en";
+        String url = "https://photon.komoot.io/reverse?lat=" + coordinates.latitude() + "&lon=" + coordinates.longitude() + "&lang=en";
 
         ChatHelper.logDebug("Requesting country from location: %s", url);
 
