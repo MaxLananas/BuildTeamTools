@@ -7,7 +7,7 @@ plugins {
 
 repositories {
     mavenCentral()
-    //mavenLocal() // NEVER use in Production/Commits!
+    mavenLocal() // NEVER use in Production/Commits!
     maven {
         url = uri("https://repo.papermc.io/repository/maven-public/")
     }
@@ -20,9 +20,9 @@ repositories {
         url = uri("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
     }
 
-    maven {
+    /*maven {
         url = uri("https://mvn.alps-bte.com/repository/alps-bte/")
-    }
+    }*/
 
     maven {
         url = uri("https://repo.onarandombox.com/content/groups/public/")
