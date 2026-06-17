@@ -3,6 +3,7 @@ package net.buildtheearth.buildteamtools.modules.navigation.components.warps.mig
 import com.alpsbte.alpslib.utils.ChatHelper;
 import com.earth2me.essentials.Essentials;
 import com.earth2me.essentials.Warps;
+import net.buildtheearth.buildteamtools.modules.navigation.NavUtils;
 import net.buildtheearth.buildteamtools.modules.navigation.components.warps.WarpsComponent;
 import net.buildtheearth.buildteamtools.modules.navigation.components.warps.model.MigrationResult;
 import net.buildtheearth.buildteamtools.modules.navigation.components.warps.model.WarpGroup;
@@ -47,6 +48,9 @@ public class EssentialsWarpMigrator implements IWarpMigrator {
         try {
             WarpGroup group =
                     WarpsComponent.getOtherWarpGroup(Objects.requireNonNull(NetworkModule.getInstance().getBuildTeam()).getWarpGroups());
+            if (group == null) {
+                group = NavUtils.createOtherWarpGroup(NetworkModule.getInstance().getBuildTeam());
+            }
             WarpsComponent.createWarp(warps.getWarp(warp), warp, group, player);
             return true;
         } catch (Exception e) {
