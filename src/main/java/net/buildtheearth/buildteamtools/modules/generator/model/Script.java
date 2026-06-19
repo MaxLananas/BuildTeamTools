@@ -40,10 +40,8 @@ public class Script {
     protected final LocalSession localSession;
     @Getter
     private int changes = 0;
-
     @Getter
     private long progressStartPercentage = 0L;
-
     @Getter
     private long progressEndPercentage = 100L;
 
@@ -62,7 +60,6 @@ public class Script {
 
     protected void finish(Block[][][] blocks, List<Vector> points) {
         createSelection(points);
-        //setGmask(null);
 
         GeneratorModule.getInstance().getGeneratorCommands().add(new Command(this, blocks));
         GeneratorModule.getInstance().getPlayerHistory(getPlayer()).addHistoryEntry(new HistoryEntry(getGeneratorComponent().getGeneratorType(), this));

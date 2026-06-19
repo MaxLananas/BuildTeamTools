@@ -100,33 +100,25 @@ public class Operation {
         };
     }
 
-    public String getValuesAsString(){
+    public String getValuesAsString() {
         StringBuilder builder = new StringBuilder();
         for (Object value : values) {
-            if (value == null) {
-                builder.append("null, ");
-                continue;
-            }
-
-            String valueString = value.toString();
-
-            if (value instanceof BlockState)
-                valueString = ((BlockState) value).getBlockType().getNamespace();
-            else if (value instanceof Vector[])
-                valueString = Arrays.toString((Vector[]) value);
-            else if (value instanceof BlockState[])
-                valueString = Arrays.toString((BlockState[]) value);
-            else if (value instanceof String[])
-                valueString = Arrays.toString((String[]) value);
-            else if (value instanceof Boolean)
-                valueString = ((Boolean) value).toString();
-            else if (value instanceof Double)
-                valueString = String.valueOf(value);
-            else if (value instanceof Integer)
-                valueString = String.valueOf(value);
-
-            builder.append(valueString).append(", ");
+            builder.append(getValueAsString(value)).append(", ");
         }
         return builder.toString();
+    }
+
+    private String getValueAsString(Object value) {
+        return switch (value) {
+            case null -> "null";
+            case BlockState blockState -> blockState.getBlockType().getNamespace();
+            case Vector[] vectors -> Arrays.toString(vectors);
+            case BlockState[] blockStates -> Arrays.toString(blockStates);
+            case String[] strings -> Arrays.toString(strings);
+            case Boolean bool -> bool.toString();
+            case Double doubleValue -> String.valueOf(doubleValue);
+            case Integer integer -> String.valueOf(integer);
+            default -> value.toString();
+        };
     }
 }

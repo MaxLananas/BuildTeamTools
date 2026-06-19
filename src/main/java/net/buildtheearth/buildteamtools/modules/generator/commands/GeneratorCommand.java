@@ -9,10 +9,27 @@ import net.buildtheearth.buildteamtools.utils.Utils;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-public class GeneratorCommand implements CommandExecutor {
+import java.util.ArrayList;
+import java.util.List;
+
+public class GeneratorCommand implements CommandExecutor, TabCompleter {
+
+    private static final List<String> SUB_COMMANDS = List.of(
+            "house",
+            "road",
+            "rail",
+            "tree",
+            "field",
+            "history",
+            "undo",
+            "redo"
+    );
+
+    private static final List<String> HELP_ARGUMENTS = List.of("help", "info", "?");
 
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String cmdLabel, String @NotNull [] args) {
         if (!(sender instanceof Player p)) {
@@ -92,5 +109,43 @@ public class GeneratorCommand implements CommandExecutor {
             sender.sendMessage("§eUndo last command:§7 /gen undo");
             sender.sendMessage("§eRedo last command:§7 /gen redo");
         });
+    }
+
+    @Override
+    public List<String> onTabComplete(
+            @NotNull CommandSender sender,
+            @NotNull Command command,
+            @NotNull String label,
+            String @NotNull [] args
+    ) {
+        if (!sender.hasPermission(Permissions.GENERATOR_USE))
+            return List.of();
+
+        if (args.length == 1)
+            return getMatchingCompletions(SUB_COMMANDS, args[0]);
+
+        if (args.length == 2 && isGeneratorSubCommand(args[0]))
+            return getMatchingCompletions(HELP_ARGUMENTS, args[1]);
+
+        return List.of();
+    }
+
+    private boolean isGeneratorSubCommand(String value) {
+        return value.equalsIgnoreCase("house")
+                || value.equalsIgnoreCase("road")
+                || value.equalsIgnoreCase("rail")
+                || value.equalsIgnoreCase("tree")
+                || value.equalsIgnoreCase("field");
+    }
+
+    private List<String> getMatchingCompletions(List<String> options, String input) {
+        String normalizedInput = input.toLowerCase();
+        List<String> completions = new ArrayList<>();
+
+        for (String option : options)
+            if (option.startsWith(normalizedInput))
+                completions.add(option);
+
+        return completions;
     }
 }

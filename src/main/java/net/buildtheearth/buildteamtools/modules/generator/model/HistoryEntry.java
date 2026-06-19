@@ -30,22 +30,6 @@ public class HistoryEntry {
         this.blockChanges = new ArrayList<>();
     }
 
-    public HistoryEntry(GeneratorType generatorType, Script script, int worldEditCommandCount) {
-        this.generatorType = generatorType;
-        this.timeCreated = System.currentTimeMillis();
-        this.worldEditCommandCount = worldEditCommandCount;
-        this.script = script;
-        this.blockChanges = new ArrayList<>();
-    }
-
-    public HistoryEntry(GeneratorType generatorType, Script script, List<BlockChange> blockChanges) {
-        this.generatorType = generatorType;
-        this.timeCreated = System.currentTimeMillis();
-        this.worldEditCommandCount = 0;
-        this.script = script;
-        this.blockChanges = blockChanges == null ? new ArrayList<>() : blockChanges;
-    }
-
     public boolean hasBlockChanges() {
         return blockChanges != null && !blockChanges.isEmpty();
     }
