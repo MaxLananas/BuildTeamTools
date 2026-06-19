@@ -14,11 +14,9 @@ import lombok.Getter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
 import net.buildtheearth.buildteamtools.modules.generator.listeners.GeneratorListener;
 import net.buildtheearth.buildteamtools.utils.MenuItems;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -363,23 +361,12 @@ public class Command {
     }
 
     private void sendGeneratorError() {
-        if (Bukkit.isPrimaryThread()) {
-            generatorComponent.sendError(player);
-            return;
-        }
-
-        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> generatorComponent.sendError(player));
+        generatorComponent.sendError(player);
     }
 
     private void sendFailureActionBar() {
         Component message = Component.text("Generator failed.", NamedTextColor.RED, TextDecoration.BOLD);
-
-        if (Bukkit.isPrimaryThread()) {
-            player.sendActionBar(message);
-            return;
-        }
-
-        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), () -> player.sendActionBar(message));
+        player.sendActionBar(message);
     }
 
     private void sendProgressActionBar(NamedTextColor color) {

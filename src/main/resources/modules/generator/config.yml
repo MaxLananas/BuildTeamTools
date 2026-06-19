@@ -7,13 +7,13 @@
 # ----------------------------------------------------------------------------------------------
 
 rail:
-  # Lower these if rail generation is too heavy for the server.
-  max-control-points: 250
-  max-path-points: 6000
-  max-block-placements: 30000
-  max-prepared-region-volume: 300000
-  max-prepared-region-axis-length: 512
-  block-placement-batch-size: 250
+  # Tested defaults for a 4 GB server. Lower these if rail generation is too heavy for your server.
+  max-control-points: 500
+  max-path-points: 12000
+  max-block-placements: 75000
+  max-prepared-region-volume: 750000
+  max-prepared-region-axis-length: 768
+  block-placement-batch-size: 500
 
 # NOTE: Do not change
 config-version: 1.0

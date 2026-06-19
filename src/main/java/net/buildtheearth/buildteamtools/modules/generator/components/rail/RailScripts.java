@@ -32,12 +32,12 @@ import java.util.Set;
 
 public class RailScripts extends Script {
 
-    private static final int DEFAULT_MAX_CONTROL_POINTS = 250;
-    private static final int DEFAULT_MAX_PATH_POINTS = 6_000;
-    private static final int DEFAULT_MAX_BLOCK_PLACEMENTS = 30_000;
-    private static final long DEFAULT_MAX_PREPARED_REGION_VOLUME = 300_000L;
-    private static final int DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH = 512;
-    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 250;
+    private static final int DEFAULT_MAX_CONTROL_POINTS = 500;
+    private static final int DEFAULT_MAX_PATH_POINTS = 12_000;
+    private static final int DEFAULT_MAX_BLOCK_PLACEMENTS = 75_000;
+    private static final long DEFAULT_MAX_PREPARED_REGION_VOLUME = 750_000L;
+    private static final int DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH = 768;
+    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 500;
     private static final int SELECTION_PADDING = 4;
     private static final int SELECTION_VERTICAL_PADDING = 12;
     private static final int PREPARE_SELECTION_EXPANSION = 8;
@@ -87,11 +87,6 @@ public class RailScripts extends Script {
     private volatile long queuedPreparationProgressPercentage = -1L;
     private long lastPreparationProgressPercentage = -1L;
 
-    public RailScripts(Player player, GeneratorComponent generatorComponent) {
-        this(player, generatorComponent, () -> {
-        });
-    }
-
     public RailScripts(Player player, GeneratorComponent generatorComponent, Runnable preparationFinishedCallback) {
         super(player, generatorComponent);
         this.limits = RailLimits.fromConfig();
@@ -109,7 +104,7 @@ public class RailScripts extends Script {
 
                 queuedGeneration = railScript_v_2_0();
             } catch (Exception exception) {
-                runOnMainThread(() -> getGeneratorComponent().sendError(getPlayer()));
+                getGeneratorComponent().sendError(getPlayer());
                 ChatHelper.logError("Rail Generator failed while preparing or generating.", exception);
             } finally {
                 if (!queuedGeneration) {
@@ -318,7 +313,7 @@ public class RailScripts extends Script {
     }
 
     private void sendRailMessage(Component message) {
-        runOnMainThread(() -> getPlayer().sendMessage(message));
+        getPlayer().sendMessage(ChatHelper.PREFIX_COMPONENT.append(message));
     }
 
     private void startRailPreparationProgressTask() {
@@ -381,16 +376,14 @@ public class RailScripts extends Script {
             return;
 
         queuedPreparationProgressPercentage = clampedPercentage;
-        runOnMainThread(() -> {
-            if (clampedPercentage <= lastPreparationProgressPercentage)
-                return;
+        if (clampedPercentage <= lastPreparationProgressPercentage)
+            return;
 
-            lastPreparationProgressPercentage = clampedPercentage;
-            getPlayer().sendActionBar(Component.text()
-                    .append(Component.text("Generator Progress: ", NamedTextColor.YELLOW))
-                    .append(Component.text(clampedPercentage + "%", NamedTextColor.GRAY))
-                    .build());
-        });
+        lastPreparationProgressPercentage = clampedPercentage;
+        getPlayer().sendActionBar(Component.text()
+                .append(Component.text("Generator Progress: ", NamedTextColor.YELLOW))
+                .append(Component.text(clampedPercentage + "%", NamedTextColor.GRAY))
+                .build());
     }
 
     private long clampProgressPercentage(long percentage) {
