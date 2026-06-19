@@ -1,7 +1,6 @@
 package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import com.alpsbte.alpslib.utils.ChatHelper;
-import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
@@ -21,7 +20,6 @@ import org.json.JSONObject;
 import org.jspecify.annotations.NonNull;
 
 import java.io.*;
-import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
@@ -59,28 +57,16 @@ public class GeneratorCollections {
             if (!myFile.exists())
                 return installGeneratorCollections(p, false);
 
-            boolean clipboardLoaded;
-
-            // For FastAsyncWorldEdit
-            if(CommonModule.getInstance().getDependencyComponent().isFastAsyncWorldEditEnabled()) {
-                clipboardLoaded = canLoadClipboard(myFile);
-
-                // For Legacy WorldEdit
-            }else if(CommonModule.getInstance().getDependencyComponent().isLegacyWorldEdit()) {
-                clipboardLoaded = canLoadLegacyClipboard(myFile, p);
-
-                // For latest WorldEdit
-            }else if(CommonModule.getInstance().getDependencyComponent().isWorldEditEnabled()) {
-
-                clipboardLoaded = canLoadClipboard(myFile);
-
-            }else{
-                return false;
+            ClipboardFormat format = ClipboardFormats.findByFile(myFile);
+            boolean foundFile = false;
+            if (format != null) {
+                try (InputStream inputStream = Files.newInputStream(myFile.toPath());
+                     ClipboardReader reader = format.getReader(inputStream);
+                     Clipboard ignored = reader.read()) {
+                    foundFile = true;
+                }
             }
-
-
-
-            if(!clipboardLoaded)
+            if (!foundFile)
                 return installGeneratorCollections(p, false);
             else
                 return checkIfGeneratorCollectionsIsUpToDate(p);
@@ -89,54 +75,6 @@ public class GeneratorCollections {
             return installGeneratorCollections(p, true);
         }
     }
-
-    private static boolean canLoadClipboard(File file) throws IOException {
-        ClipboardFormat format = ClipboardFormats.findByFile(file);
-
-        if (format == null)
-            return false;
-
-        try (InputStream inputStream = Files.newInputStream(file.toPath());
-             ClipboardReader reader = format.getReader(inputStream);
-             Clipboard clipboard = reader.read()) {
-            return clipboard != null;
-        }
-    }
-
-    @SuppressWarnings("JavaReflectionMemberAccess")
-    private static boolean canLoadLegacyClipboard(File file, @Nullable Player player) throws Exception {
-        Class<?> formatClass = ClipboardFormat.class;
-        Method findByFile = formatClass.getMethod("findByFile", File.class);
-        Method getReader = ClipboardFormat.class.getMethod("getReader", InputStream.class);
-
-        ClipboardFormat format = (ClipboardFormat) findByFile.invoke(null, file);
-
-        if (format == null)
-            return false;
-
-        BukkitWorld bukkitWorld;
-        if(player != null)
-            bukkitWorld = new BukkitWorld(player.getWorld());
-        else
-            bukkitWorld = new BukkitWorld(Bukkit.getWorlds().getFirst());
-
-        try (InputStream inputStream = Files.newInputStream(file.toPath());
-             ClipboardReader reader = (ClipboardReader) getReader.invoke(format, inputStream)) {
-            if (reader == null)
-                return false;
-
-            Class<?> readerClass = reader.getClass();
-            Method read = readerClass.getMethod("read", Class.forName("com.sk89q.worldedit.world.registry.WorldData"));
-
-            Method getWorldDataMethod = bukkitWorld.getClass().getMethod("getWorldData");
-            Object worldData = getWorldDataMethod.invoke(bukkitWorld);
-
-            try (Clipboard clipboard = (Clipboard) read.invoke(reader, worldData)) {
-                return clipboard != null;
-            }
-        }
-    }
-
 
     /**
      * Returns the latest release version of a repository on GitHub

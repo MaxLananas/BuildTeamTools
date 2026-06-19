@@ -1,0 +1,19 @@
+# ----------------------------------------------------------------------------------------------
+# |                 BuildTeamTools - Generator Module - by BuildTheEarth
+# ----------------------------------------------------------------------------------------------
+# | [Github Repo]           https://github.com/BuildTheEarth/BuildTeamTools
+# | [Config Documentation]  https://resources.buildtheearth.net/doc/configuration-tpEHSZ6Zt2
+# | [Contacts - Discord]    BTE Development Hub, @zoriot
+# ----------------------------------------------------------------------------------------------
+
+rail:
+  # Lower these if rail generation is too heavy for the server.
+  max-control-points: 250
+  max-path-points: 6000
+  max-block-placements: 30000
+  max-prepared-region-volume: 300000
+  max-prepared-region-axis-length: 512
+  block-placement-batch-size: 250
+
+# NOTE: Do not change
+config-version: 1.0

@@ -12,6 +12,7 @@ import net.buildtheearth.buildteamtools.modules.generator.model.Script;
 import net.buildtheearth.buildteamtools.modules.generator.model.Settings;
 import net.buildtheearth.buildteamtools.utils.MenuItems;
 import net.buildtheearth.buildteamtools.utils.io.ConfigPaths;
+import net.buildtheearth.buildteamtools.utils.io.ConfigUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -941,7 +942,7 @@ public class RailScripts extends Script {
     ) {
 
         private static RailLimits fromConfig() {
-            FileConfiguration config = BuildTeamTools.getInstance().getConfig();
+            FileConfiguration config = BuildTeamTools.getInstance().getConfig(ConfigUtil.GENERATOR);
 
             return new RailLimits(
                     getPositiveInt(config, ConfigPaths.Generator.Rail.MAX_CONTROL_POINTS, DEFAULT_MAX_CONTROL_POINTS, 2),

@@ -4,9 +4,6 @@ import com.alpsbte.alpslib.utils.item.Item;
 import com.cryptomorin.xseries.XMaterial;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
-import net.buildtheearth.buildteamtools.modules.generator.components.field.Field;
-import net.buildtheearth.buildteamtools.modules.generator.components.field.FieldSettings;
-import net.buildtheearth.buildteamtools.modules.generator.components.field.menu.CropTypeMenu;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.House;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.HouseSettings;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.RoofType;
@@ -252,18 +249,7 @@ public class GeneratorMenu extends AbstractMenu {
         getMenu().getSlot(FIELD_ITEM_SLOT).setClickHandler(((clickPlayer, clickInformation) -> {
             if (clickInformation.getClickType().equals(ClickType.RIGHT)) {
                 sendMoreInformation(clickPlayer, GeneratorType.FIELD);
-                return;
             }
-
-            Field field = GeneratorModule.getInstance().getField();
-            field.getPlayerSettings().put(clickPlayer.getUniqueId(), new FieldSettings(clickPlayer));
-
-            if (!field.checkForPlayer(clickPlayer))
-                return;
-
-            clickPlayer.closeInventory();
-            clickPlayer.playSound(clickPlayer.getLocation(), Sound.UI_BUTTON_CLICK, 1.0F, 1.0F);
-            new CropTypeMenu(clickPlayer, true);
         }));
     }
 
@@ -279,11 +265,6 @@ public class GeneratorMenu extends AbstractMenu {
 
     @Override
     protected Mask getMask() {
-        return BinaryMask.builder(getMenu())
-                .item(MenuItems.ITEM_BACKGROUND)
-                .pattern("111111111")
-                .pattern("010101010")
-                .pattern("111111111")
-                .build();
+        return BinaryMask.builder(getMenu()).item(MenuItems.ITEM_BACKGROUND).pattern(BinaryMask.FULL_PATTERN).pattern("010101010").pattern(BinaryMask.FULL_PATTERN).build();
     }
 }

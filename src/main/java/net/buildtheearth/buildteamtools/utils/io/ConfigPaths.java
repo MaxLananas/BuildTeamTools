@@ -15,11 +15,9 @@ public abstract class ConfigPaths {
 
     public static class Generator {
 
-        private static final String GENERATOR = "generator.";
-
         public static class Rail {
 
-            private static final String RAIL = GENERATOR + "rail.";
+            private static final String RAIL = "rail.";
 
             public static final String MAX_CONTROL_POINTS = RAIL + "max-control-points";
             public static final String MAX_PATH_POINTS = RAIL + "max-path-points";
