@@ -84,7 +84,12 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
     }
 
     public void sendHelp(@NonNull Player p) {
-        p.sendMessage(Component.text(getWikiPage(), NamedTextColor.YELLOW));
+        String wikiPage = getWikiPage();
+        Component wikiLink = Component.text(wikiPage, NamedTextColor.YELLOW)
+                .clickEvent(ClickEvent.openUrl(wikiPage))
+                .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)));
+
+        p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(wikiLink));
     }
 
     public void sendError(Player p) {

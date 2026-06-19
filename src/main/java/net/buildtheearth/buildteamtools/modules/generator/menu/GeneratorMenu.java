@@ -252,12 +252,11 @@ public class GeneratorMenu extends AbstractMenu {
 
     private void sendMoreInformation(@NonNull Player clickPlayer, @NonNull GeneratorType generator) {
         String wikiPage = generator.getWikiPage();
+        Component documentationLink = Component.text("Open generator documentation: " + wikiPage, NamedTextColor.GRAY)
+                .clickEvent(ClickEvent.openUrl(wikiPage))
+                .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)));
 
-        clickPlayer.sendMessage(
-                ChatHelper.PREFIX_COMPONENT.append(Component.text("Open generator documentation: " + wikiPage, NamedTextColor.GRAY))
-                        .clickEvent(ClickEvent.openUrl(wikiPage))
-                        .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)))
-        );
+        clickPlayer.sendMessage(ChatHelper.PREFIX_COMPONENT.append(documentationLink));
     }
 
     @Override
