@@ -27,6 +27,9 @@ final class RailPreparationProgress {
     }
 
     void start() {
+        if (!canContinue())
+            return;
+
         runOnMainThread(() -> {
             if (task != null)
                 return;
@@ -51,6 +54,9 @@ final class RailPreparationProgress {
     }
 
     void startStage(long startPercentage, long endPercentage, long estimatedDurationMillis) {
+        if (!canContinue())
+            return;
+
         stageStartPercentage = clamp(startPercentage);
         stageEndPercentage = clamp(endPercentage);
         stageStartedAtMillis = System.currentTimeMillis();
@@ -63,6 +69,9 @@ final class RailPreparationProgress {
     }
 
     void update(long percentage) {
+        if (!canContinue())
+            return;
+
         long clampedPercentage = clamp(percentage);
 
         if (clampedPercentage <= queuedPercentage)
@@ -88,6 +97,11 @@ final class RailPreparationProgress {
     }
 
     private void sendEstimatedProgress() {
+        if (!canContinue()) {
+            stop();
+            return;
+        }
+
         long currentStageStart = stageStartPercentage;
         long currentStageEnd = stageEndPercentage;
 
@@ -109,11 +123,20 @@ final class RailPreparationProgress {
     }
 
     private void runOnMainThread(Runnable runnable) {
+        if (!BuildTeamTools.getInstance().isEnabled())
+            return;
+
         if (Bukkit.isPrimaryThread()) {
             runnable.run();
             return;
         }
 
         Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), runnable);
+    }
+
+    private boolean canContinue() {
+        return BuildTeamTools.getInstance().isEnabled()
+                && player != null
+                && player.isOnline();
     }
 }

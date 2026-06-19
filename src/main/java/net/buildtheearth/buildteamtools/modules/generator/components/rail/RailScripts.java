@@ -21,6 +21,7 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,6 +68,8 @@ public class RailScripts extends Script {
     private Block[][][] blocks;
     private List<Vector> controlPoints = new ArrayList<>();
     private List<Vector> centerPath = new ArrayList<>();
+    private final Map<PositionKey, Block> preparedBlockCache = new HashMap<>();
+    private final Map<PositionKey, Integer> railYCache = new HashMap<>();
     private RailType railType = RailType.STANDARD;
     private final RailLimits limits;
     private final RailPreparationProgress preparationProgress;
@@ -87,9 +90,10 @@ public class RailScripts extends Script {
             boolean queuedGeneration = false;
 
             try {
+                if (!canContinue()) return;
                 if (!prepareSession()) return;
 
-                queuedGeneration = railScript_v_2_0();
+                queuedGeneration = queueRailGeneration();
             } catch (Exception exception) {
                 getGeneratorComponent().sendError(getPlayer());
                 ChatHelper.logError("Rail Generator failed while preparing or generating.", exception);
@@ -97,7 +101,7 @@ public class RailScripts extends Script {
                 if (!queuedGeneration) {
                     runOnMainThread(() -> {
                         preparationProgress.stop();
-                        preparationFinishedCallback.run();
+                        runPreparationFinishedCallbackSafely();
                     });
                 }
             }
@@ -105,6 +109,8 @@ public class RailScripts extends Script {
     }
 
     private boolean prepareSession() {
+        if (!canContinue()) return false;
+
         controlPoints = getControlPoints();
         railReferenceY = getRailReferenceY(controlPoints);
         preparationProgress.completeStage(CONTROL_POINTS_PROGRESS);
@@ -147,7 +153,10 @@ public class RailScripts extends Script {
                 false,
                 false
         );
+        indexPreparedBlocks();
         preparationProgress.completeStage(TERRAIN_PREPARE_PROGRESS);
+
+        if (!canContinue()) return false;
 
         preparationProgress.startStage(TERRAIN_PREPARE_PROGRESS, TERRAIN_ADJUST_PROGRESS, TERRAIN_ADJUST_ESTIMATED_MILLIS);
         snapMissingControlPointHeightsToTerrain(controlPoints);
@@ -156,10 +165,12 @@ public class RailScripts extends Script {
         railType = getRailType();
         preparationProgress.completeStage(TERRAIN_ADJUST_PROGRESS);
 
-        return hasValidCenterPath();
+        return true;
     }
 
-    private boolean railScript_v_2_0() {
+    private boolean queueRailGeneration() {
+        if (!canContinue()) return false;
+
         if (!hasValidCenterPath())
             return false;
 
@@ -209,11 +220,22 @@ public class RailScripts extends Script {
     private void finishOnMainThread() {
         runOnMainThread(() -> {
             try {
-                finish(blocks, getRestoreSelectionPoints());
+                finish(blocks, controlPoints);
+            } catch (Exception exception) {
+                getGeneratorComponent().sendError(getPlayer());
+                ChatHelper.logError("Rail Generator failed while finishing.", exception);
             } finally {
-                preparationFinishedCallback.run();
+                runPreparationFinishedCallbackSafely();
             }
         });
+    }
+
+    private void runPreparationFinishedCallbackSafely() {
+        try {
+            preparationFinishedCallback.run();
+        } catch (Exception exception) {
+            ChatHelper.logError("Rail Generator preparation callback failed.", exception);
+        }
     }
 
     private boolean hasValidControlPoints() {
@@ -301,6 +323,8 @@ public class RailScripts extends Script {
     }
 
     private void sendRailMessage(Component message) {
+        if (!canContinue()) return;
+
         getPlayer().sendMessage(ChatHelper.PREFIX_COMPONENT.append(message));
     }
 
@@ -314,12 +338,21 @@ public class RailScripts extends Script {
     }
 
     private void runOnMainThread(Runnable runnable) {
+        if (!BuildTeamTools.getInstance().isEnabled())
+            return;
+
         if (Bukkit.isPrimaryThread()) {
             runnable.run();
             return;
         }
 
         Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), runnable);
+    }
+
+    private boolean canContinue() {
+        return BuildTeamTools.getInstance().isEnabled()
+                && getPlayer() != null
+                && getPlayer().isOnline();
     }
 
     private List<Vector> getControlPoints() {
@@ -357,8 +390,7 @@ public class RailScripts extends Script {
         Map<PositionKey, BlockState> railBlocks = new LinkedHashMap<>();
         List<List<Vector>> railCenterPaths = createRailCenterPaths(path);
         Set<PositionKey> centerPositions = getCenterPositions(railCenterPaths);
-        Set<ColumnKey> centerColumns = getCenterColumns(railCenterPaths);
-        Map<ColumnKey, RailSideBlock> sideBlocks = new LinkedHashMap<>();
+        Map<PositionKey, RailSideBlock> sideBlocks = new LinkedHashMap<>();
         int totalPathPoints = getTotalPathPointCount(railCenterPaths);
         int processedPathPoints = 0;
 
@@ -367,7 +399,7 @@ public class RailScripts extends Script {
                 Vector center = railCenterPath.get(index);
 
                 for (RailSidePlacement sidePlacement : getSidePlacements(railCenterPath, index))
-                    addSideBlock(sideBlocks, center, sidePlacement, centerPositions, centerColumns);
+                    addSideBlock(sideBlocks, center, sidePlacement, centerPositions);
 
                 processedPathPoints++;
                 preparationProgress.update(preparationProgress.scale(processedPathPoints, totalPathPoints, TERRAIN_ADJUST_PROGRESS, 86L));
@@ -635,11 +667,10 @@ public class RailScripts extends Script {
     }
 
     private void addSideBlock(
-            Map<ColumnKey, RailSideBlock> sideBlocks,
+            Map<PositionKey, RailSideBlock> sideBlocks,
             Vector center,
             RailSidePlacement sidePlacement,
-            Set<PositionKey> centerPositions,
-            Set<ColumnKey> centerColumns
+            Set<PositionKey> centerPositions
     ) {
         RailStep sideOffset = sidePlacement.offset();
 
@@ -651,22 +682,21 @@ public class RailScripts extends Script {
         int y = getSideBlockY(x, z, center.getBlockY());
 
         PositionKey key = PositionKey.of(x, y, z);
-        ColumnKey columnKey = ColumnKey.from(key);
 
-        if (centerPositions.contains(key) || centerColumns.contains(columnKey))
+        if (centerPositions.contains(key))
             return;
 
         sideBlocks
-                .computeIfAbsent(columnKey, ignored -> new RailSideBlock(key, DEFAULT_FACING))
+                .computeIfAbsent(key, ignored -> new RailSideBlock(key, DEFAULT_FACING))
                 .addFacing(sidePlacement.facing());
     }
 
-    private Direction resolveSideBlockFacing(RailSideBlock sideBlock, Map<ColumnKey, RailSideBlock> sideBlocks) {
+    private Direction resolveSideBlockFacing(RailSideBlock sideBlock, Map<PositionKey, RailSideBlock> sideBlocks) {
         PositionKey key = sideBlock.key();
-        boolean east = sideBlocks.containsKey(ColumnKey.of(key.x() + 1, key.z()));
-        boolean west = sideBlocks.containsKey(ColumnKey.of(key.x() - 1, key.z()));
-        boolean south = sideBlocks.containsKey(ColumnKey.of(key.x(), key.z() + 1));
-        boolean north = sideBlocks.containsKey(ColumnKey.of(key.x(), key.z() - 1));
+        boolean east = sideBlocks.containsKey(PositionKey.of(key.x() + 1, key.y(), key.z()));
+        boolean west = sideBlocks.containsKey(PositionKey.of(key.x() - 1, key.y(), key.z()));
+        boolean south = sideBlocks.containsKey(PositionKey.of(key.x(), key.y(), key.z() + 1));
+        boolean north = sideBlocks.containsKey(PositionKey.of(key.x(), key.y(), key.z() - 1));
         int xConnections = (east ? 1 : 0) + (west ? 1 : 0);
         int zConnections = (south ? 1 : 0) + (north ? 1 : 0);
         Direction preferredFacing = sideBlock.getPreferredFacing();
@@ -697,16 +727,6 @@ public class RailScripts extends Script {
             return negativeFacing;
 
         return preferredFacing == negativeFacing ? negativeFacing : positiveFacing;
-    }
-
-    private Set<ColumnKey> getCenterColumns(List<List<Vector>> railCenterPaths) {
-        Set<ColumnKey> centerColumns = new HashSet<>();
-
-        for (List<Vector> railCenterPath : railCenterPaths)
-            for (Vector center : railCenterPath)
-                centerColumns.add(ColumnKey.from(PositionKey.from(center)));
-
-        return centerColumns;
     }
 
     private Set<PositionKey> getCenterPositions(List<List<Vector>> railCenterPaths) {
@@ -747,10 +767,11 @@ public class RailScripts extends Script {
     }
 
     private void snapMissingControlPointHeightsToTerrain(List<Vector> points) {
-        if (blocks == null || !hasMissingControlPointHeights(points)) return;
+        if (blocks == null || !hasAnyMissingControlPointHeights(points)) return;
 
         for (Vector point : points)
-            point.setY(getNearestRailSurfaceY(point.getBlockX(), point.getBlockZ(), railReferenceY));
+            if (point.getBlockY() == 0)
+                point.setY(getNearestRailSurfaceY(point.getBlockX(), point.getBlockZ(), railReferenceY));
     }
 
     private void adjustCenterPathToTerrain() {
@@ -778,32 +799,33 @@ public class RailScripts extends Script {
         if (blocks == null)
             return fallbackY;
 
+        PositionKey cacheKey = PositionKey.of(x, fallbackY, z);
+        return railYCache.computeIfAbsent(cacheKey, ignored -> findNearestRailSurfaceY(x, z, fallbackY));
+    }
+
+    private int findNearestRailSurfaceY(int x, int z, int fallbackY) {
         int nearestRailY = fallbackY;
         int nearestDistance = Integer.MAX_VALUE;
 
-        for (Block[][] block2D : blocks) {
-            for (Block[] block1D : block2D) {
-                for (Block block : block1D) {
-                    if (!isRailGroundBlock(block, x, z))
-                        continue;
+        for (Block block : preparedBlockCache.values()) {
+            if (!isRailGroundBlock(block, x, z))
+                continue;
 
-                    int railY = block.getY() + SURFACE_Y_OFFSET;
-                    int distance = Math.abs(railY - fallbackY);
+            int railY = block.getY() + SURFACE_Y_OFFSET;
+            int distance = Math.abs(railY - fallbackY);
 
-                    if (distance < nearestDistance || distance == nearestDistance && railY <= fallbackY) {
-                        nearestRailY = railY;
-                        nearestDistance = distance;
-                    }
-                }
+            if (distance < nearestDistance || distance == nearestDistance && railY <= fallbackY) {
+                nearestRailY = railY;
+                nearestDistance = distance;
             }
         }
 
         if (nearestDistance != Integer.MAX_VALUE)
             return nearestRailY;
 
-        int surfaceY = GeneratorUtils.getMaxHeight(blocks, x, z, MenuItems.getIgnoredMaterials());
+        int surfaceY = getHighestRailGroundY(x, z);
 
-        if (surfaceY == 0)
+        if (surfaceY == Integer.MIN_VALUE)
             return fallbackY;
 
         return surfaceY + SURFACE_Y_OFFSET;
@@ -818,6 +840,17 @@ public class RailScripts extends Script {
                 return false;
 
         return isRailPlacementOpen(x, block.getY() + SURFACE_Y_OFFSET, z);
+    }
+
+    private int getHighestRailGroundY(int x, int z) {
+        int highestY = Integer.MIN_VALUE;
+
+        for (Block block : preparedBlockCache.values()) {
+            if (isRailGroundBlock(block, x, z) && block.getY() > highestY)
+                highestY = block.getY();
+        }
+
+        return highestY;
     }
 
     private boolean isRailPlacementOpen(int x, int y, int z) {
@@ -837,38 +870,39 @@ public class RailScripts extends Script {
     }
 
     private Block getPreparedBlock(int x, int y, int z) {
+        return preparedBlockCache.get(PositionKey.of(x, y, z));
+    }
+
+    private void indexPreparedBlocks() {
+        preparedBlockCache.clear();
+        railYCache.clear();
+
         if (blocks == null)
-            return null;
+            return;
 
         for (Block[][] block2D : blocks)
             for (Block[] block1D : block2D)
                 for (Block block : block1D)
-                    if (block != null && block.getX() == x && block.getY() == y && block.getZ() == z)
-                        return block;
-
-        return null;
+                    if (block != null)
+                        preparedBlockCache.put(PositionKey.of(block.getX(), block.getY(), block.getZ()), block);
     }
 
     private int getRailReferenceY(List<Vector> points) {
         if (points.isEmpty())
             return getPlayer().getWorld().getMinHeight();
 
-        if (!hasMissingControlPointHeights(points))
+        if (!hasAnyMissingControlPointHeights(points))
             return points.getFirst().getBlockY();
 
         int referenceY = getRegion() != null ? getRegion().getMinimumY() : GeneratorUtils.getMinHeight(points);
         return Math.min(getPlayer().getWorld().getMaxHeight() - 1, referenceY + SURFACE_Y_OFFSET);
     }
 
-    private boolean hasMissingControlPointHeights(List<Vector> points) {
+    private boolean hasAnyMissingControlPointHeights(List<Vector> points) {
         for (Vector point : points)
-            if (point.getBlockY() != 0) return false;
+            if (point.getBlockY() == 0) return true;
 
-        return true;
-    }
-
-    private List<Vector> getRestoreSelectionPoints() {
-        return controlPoints;
+        return false;
     }
 
     private int getSelectionMinY(List<Vector> points) {
