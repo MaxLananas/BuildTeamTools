@@ -40,11 +40,14 @@ public class History {
 
     public void undoCommand(Player p) {
         if (getHistoryEntries().isEmpty()) {
-            p.sendMessage("§cYou didn't generate any structures yet. Use /gen to create one. You can only undo the last structure.");
+            p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
+                    "You didn't generate any structures yet. Use /gen to create one. You can only undo the last structure.",
+                    NamedTextColor.RED
+            )));
             return;
         }
 
-        HistoryEntry entry = getHistoryEntries().get(getHistoryEntries().size() - 1);
+        HistoryEntry entry = getHistoryEntries().getLast();
 
         if (entry.hasBlockChanges()) {
             entry.applyUndo();
@@ -73,11 +76,14 @@ public class History {
 
     public void redoCommand(Player p) {
         if (getUndoHistoryEntries().isEmpty()) {
-            p.sendMessage("§cYou didn't undo any structures yet. Use /gen undo to undo one. You can only redo the last structure.");
+            p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
+                    "You didn't undo any structures yet. Use /gen undo to undo one. You can only redo the last structure.",
+                    NamedTextColor.RED
+            )));
             return;
         }
 
-        HistoryEntry entry = getUndoHistoryEntries().get(getUndoHistoryEntries().size() - 1);
+        HistoryEntry entry = getUndoHistoryEntries().getLast();
 
         if (entry.hasBlockChanges()) {
             entry.applyRedo();

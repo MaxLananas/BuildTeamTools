@@ -4,7 +4,6 @@ import com.alpsbte.alpslib.utils.GeneratorUtils;
 import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.WikiDocumented;
 import lombok.Getter;
-import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.ModuleComponent;
 import net.buildtheearth.buildteamtools.modules.generator.components.field.FieldSettings;
 import net.buildtheearth.buildteamtools.modules.generator.components.house.HouseSettings;
@@ -17,7 +16,6 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.jspecify.annotations.NonNull;
@@ -143,8 +141,10 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
             case FIELD -> "Field";
         };
 
-        return LegacyComponentSerializer.legacyAmpersand()
-                .deserialize(BuildTeamTools.PREFIX + type + "§a successfully §7generated.");
+        return ChatHelper.PREFIX_COMPONENT
+                .append(Component.text(type, NamedTextColor.GRAY))
+                .append(Component.text(" successfully ", NamedTextColor.GREEN))
+                .append(Component.text("generated.", NamedTextColor.GRAY));
     }
 
     /**

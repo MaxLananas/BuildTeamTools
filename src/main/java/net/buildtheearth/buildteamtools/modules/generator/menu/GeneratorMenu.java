@@ -1,6 +1,7 @@
 package net.buildtheearth.buildteamtools.modules.generator.menu;
 
 import com.alpsbte.alpslib.utils.item.Item;
+import com.alpsbte.alpslib.utils.ChatHelper;
 import com.cryptomorin.xseries.XMaterial;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
@@ -86,11 +87,7 @@ public class GeneratorMenu extends AbstractMenu {
                 "§8Right-click for Tutorial"
         );
 
-        ItemStack roadItem = new Item(XMaterial.SMOOTH_STONE_SLAB.parseItem())
-                .setDisplayName("§bGenerate Road")
-                .setLore(roadLore)
-                .build();
-
+        ItemStack roadItem = Item.create(Objects.requireNonNull(XMaterial.SMOOTH_STONE_SLAB.get()), "§bGenerate Road", roadLore);
         getMenu().getSlot(ROAD_ITEM_SLOT).setItem(roadItem);
 
         ArrayList<String> railwayLore = ListUtil.createList(
@@ -114,11 +111,7 @@ public class GeneratorMenu extends AbstractMenu {
                 "§8Right-click for Tutorial"
         );
 
-        ItemStack railwayItem = new Item(Objects.requireNonNull(XMaterial.RAIL.parseItem()))
-                .setDisplayName("§9Generate Railway")
-                .setLore(railwayLore)
-                .build();
-
+        ItemStack railwayItem = Item.create(Objects.requireNonNull(XMaterial.RAIL.get()), "§9Generate Railway", railwayLore);
         getMenu().getSlot(RAIL_ITEM_SLOT).setItem(railwayItem);
 
         if (!CommonModule.getInstance().getDependencyComponent().isSchematicBrushEnabled()) {
@@ -261,7 +254,7 @@ public class GeneratorMenu extends AbstractMenu {
         String wikiPage = generator.getWikiPage();
 
         clickPlayer.sendMessage(
-                Component.text("Open generator documentation: " + wikiPage, NamedTextColor.GRAY)
+                ChatHelper.PREFIX_COMPONENT.append(Component.text("Open generator documentation: " + wikiPage, NamedTextColor.GRAY))
                         .clickEvent(ClickEvent.openUrl(wikiPage))
                         .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)))
         );

@@ -129,7 +129,7 @@ public class Command {
 
             // Skip WorldEdit commands that take no time to execute
             if (command.getOperationType() == Operation.OperationType.COMMAND) {
-                String commandString = (String) command.getValues().get(0);
+                String commandString = command.get(0, String.class);
 
                 if (commandString.startsWith("//gmask")
                         || commandString.startsWith("//mask")
@@ -301,11 +301,7 @@ public class Command {
                     break;
             }
         } catch (Exception e) {
-            if (operation != null)
-                ChatHelper.logError("Error while processing command: " + operation.getOperationType() + " - " + operation.getValuesAsString());
-            else
-                ChatHelper.logError("Error while processing command.");
-
+            ChatHelper.logError("Error while processing command: " + operation.getOperationType() + " - " + operation.getValuesAsString());
             ChatHelper.logError("Generator command processing failed.", e);
             failGeneration();
             return;
@@ -394,7 +390,9 @@ public class Command {
 
     /** Converts the XYZ coordinates in a command to the highest block at that location while skipping certain blocks. */
     public String convertXYZ(String command) {
-        String xyz = command.split("%%XYZ/")[1].split("/%%")[0];
+        String[] commandParts = command.split("%%XYZ/", 2);
+        String[] xyzParts = commandParts[1].split("/%%", 2);
+        String xyz = xyzParts[0];
 
         String[] xyzSplit = xyz.split(",");
         int x = Integer.parseInt(xyzSplit[0]);
@@ -409,12 +407,9 @@ public class Command {
         if (maxHeight == 0)
             maxHeight = y;
 
-        String commandSuffix = "";
+        String commandSuffix = xyzParts.length > 1 ? xyzParts[1] : "";
 
-        if (command.split("/%%").length > 1)
-            commandSuffix = command.split("/%%")[1];
-
-        return command.split("%%XYZ/")[0] + x + "," + maxHeight + "," + z + commandSuffix;
+        return commandParts[0] + x + "," + maxHeight + "," + z + commandSuffix;
     }
 
     /** Called when the command queue is finished. */
