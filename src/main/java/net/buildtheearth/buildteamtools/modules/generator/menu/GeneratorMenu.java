@@ -114,7 +114,11 @@ public class GeneratorMenu extends AbstractMenu {
                 "§8Right-click for Tutorial"
         );
 
-        ItemStack railwayItem = Item.create(Objects.requireNonNull(XMaterial.RAIL.get()), "§9Generate Railway", railwayLore);
+        ItemStack railwayItem = new Item(Objects.requireNonNull(XMaterial.RAIL.parseItem()))
+                .setDisplayName("§9Generate Railway")
+                .setLore(railwayLore)
+                .build();
+
         getMenu().getSlot(RAIL_ITEM_SLOT).setItem(railwayItem);
 
         if (!CommonModule.getInstance().getDependencyComponent().isSchematicBrushEnabled()) {

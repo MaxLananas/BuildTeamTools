@@ -16,6 +16,7 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class RailTypeMenu extends NameListMenu {
 
@@ -30,7 +31,7 @@ public class RailTypeMenu extends NameListMenu {
 
         for (RailType railType : RailType.values()) {
             railTypes.add(new MutablePair<>(
-                    Item.create(railType.getIcon(), railType.getDisplayName()),
+                    Item.create(Objects.requireNonNull(railType.getIcon().get()), railType.getDisplayName()),
                     railType.getIdentifier()
             ));
         }

@@ -1,5 +1,6 @@
 package net.buildtheearth.buildteamtools.modules.generator.components.rail;
 
+import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.GeneratorUtils;
 import com.sk89q.worldedit.regions.ConvexPolyhedralRegion;
 import com.sk89q.worldedit.regions.CuboidRegion;
@@ -35,7 +36,10 @@ public class Rail extends GeneratorComponent {
         if (isSupportedRailSelection(region))
             return true;
 
-        player.sendMessage(Component.text("Rail Generator supports cuboid, polygonal and convex WorldEdit selections.", NamedTextColor.RED));
+        player.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
+                "Rail Generator supports cuboid, polygonal and convex WorldEdit selections.",
+                NamedTextColor.RED
+        )));
         player.closeInventory();
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0F, 1.0F);
         return false;
@@ -63,10 +67,10 @@ public class Rail extends GeneratorComponent {
     }
 
     private void sendAlreadyGeneratingMessage(Player player) {
-        player.sendMessage(Component.text(
+        player.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
                 "Rail Generator is already running. Please wait until the current generation is finished.",
                 NamedTextColor.RED
-        ));
+        )));
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0F, 1.0F);
     }
 }

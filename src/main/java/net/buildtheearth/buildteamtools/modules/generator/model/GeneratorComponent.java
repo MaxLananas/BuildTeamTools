@@ -1,6 +1,7 @@
 package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import com.alpsbte.alpslib.utils.GeneratorUtils;
+import com.alpsbte.alpslib.utils.ChatHelper;
 import com.alpsbte.alpslib.utils.WikiDocumented;
 import lombok.Getter;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
@@ -88,14 +89,11 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
         p.sendMessage(Component.text(getWikiPage(), NamedTextColor.YELLOW));
     }
 
-    public void sendMoreInfo(Player p) {
-        p.sendMessage(" ");
-        p.sendMessage("§cFor more information take a look at the wiki:");
-        p.sendMessage("§c" + getWikiPage());
-    }
-
     public void sendError(Player p) {
-        p.sendMessage("§cThere was an error while generating the " + generatorType.getName().toLowerCase() + ". Please contact the admins.");
+        p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
+                "There was an error while generating the " + generatorType.getName().toLowerCase() + ". Please contact the admins.",
+                NamedTextColor.RED
+        )));
     }
 
     public String getCommand(@NonNull Player p) {
@@ -119,7 +117,7 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
 
     public void sendSuccessMessage(Player p) {
         TextComponent copyCommand = Component.text("[COPY]", NamedTextColor.YELLOW, TextDecoration.BOLD)
-                .clickEvent(ClickEvent.clickEvent(ClickEvent.Action.SUGGEST_COMMAND, getCommand(p)))
+                .clickEvent(ClickEvent.suggestCommand(getCommand(p)))
                 .hoverEvent(HoverEvent.showText(Component.text("Click to copy command", NamedTextColor.GRAY)));
 
         TextComponent undo = Component.text("[UNDO]", NamedTextColor.RED, TextDecoration.BOLD)
