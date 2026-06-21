@@ -213,36 +213,49 @@ public class BuildTeam {
         });
     }
 
-    public void deleteWarpGroup(Player deleter, WarpGroup warpGroup) {
-        // Check if the team owns that warp group
-        if (!warpGroup.getBuildTeam().getID().equals(this.getID())) {
-            deleter.sendMessage(ChatHelper.getErrorString("You can only delete warp groups for your own team!"));
-            return;
-        }
+public void deleteWarpGroup(Player deleter, WarpGroup warpGroup) {
+    if (!warpGroup.getBuildTeam().getID().equals(this.getID())) {
+        deleter.sendMessage(ChatHelper.getErrorString("You can only delete warp groups for your own team!"));
+        return;
+    }
 
-        this.warpGroups.remove(warpGroup);
-        ChatHelper.sendSuccessfulMessage(deleter, "Successfully deleted the warp group %s!", warpGroup.getName());
+    List<Warp> warpsToDelete = new ArrayList<>(warpGroup.getWarps());
 
-        NetworkAPI.deleteWarpGroup(warpGroup, new API.ApiResponseCallback() {
+    for (Warp warp : warpsToDelete) {
+        warpGroup.getWarps().remove(warp);
+        NetworkAPI.deleteWarp(warp, new API.ApiResponseCallback() {
             @Override
-            public void onResponse(String response) {
-                NetworkModule.getInstance().updateCache().thenRun(() -> refreshBluemapMarkers()).exceptionally(e -> {
-                    BuildTeamTools.getInstance().getComponentLogger().warn("Failed to update cache after warp group deletion.",
-                            e);
-                    return null;
-                });
-            }
+            public void onResponse(String response) {}
 
             @Override
             public void onFailure(IOException e) {
-                warpGroups.add(warpGroup);
-                deleter.sendMessage(ChatHelper.getErrorString("Failed to delete warp group %s from the network! It has been " +
-                        "restored locally. Please try again.", warpGroup.getName()));
-                BuildTeamTools.getInstance().getComponentLogger().error("Failed to delete warp group via API", e);
+                warpGroup.getWarps().add(warp);
+                deleter.sendMessage(ChatHelper.getErrorString("Failed to delete warp %s from the network! Aborting group deletion.", warp.getName()));
+                BuildTeamTools.getInstance().getComponentLogger().error("Failed to delete warp via API during group deletion", e);
             }
         });
     }
 
+    this.warpGroups.remove(warpGroup);
+    ChatHelper.sendSuccessfulMessage(deleter, "Successfully deleted the warp group %s!", warpGroup.getName());
+
+    NetworkAPI.deleteWarpGroup(warpGroup, new API.ApiResponseCallback() {
+        @Override
+        public void onResponse(String response) {
+            NetworkModule.getInstance().updateCache().thenRun(() -> refreshBluemapMarkers()).exceptionally(e -> {
+                BuildTeamTools.getInstance().getComponentLogger().warn("Failed to update cache after warp group deletion.", e);
+                return null;
+            });
+        }
+
+        @Override
+        public void onFailure(IOException e) {
+            warpGroups.add(warpGroup);
+            deleter.sendMessage(ChatHelper.getErrorString("Failed to delete warp group %s from the network! It has been restored locally. Please try again.", warpGroup.getName()));
+            BuildTeamTools.getInstance().getComponentLogger().error("Failed to delete warp group via API", e);
+        }
+    });
+}
     /**
      * Refreshes BlueMap markers for all warp groups.
      * <p>
