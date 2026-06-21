@@ -38,9 +38,8 @@ public class History {
 
     public void undoCommand(Player p) {
         if (getHistoryEntries().isEmpty()) {
-            p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
-                    "You didn't generate any structures yet. Use /gen to create one. You can only undo the last structure.",
-                    NamedTextColor.RED
+            p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                    "You didn't generate any structures yet. Use /gen to create one. You can only undo the last structure."
             )));
             return;
         }
@@ -72,9 +71,8 @@ public class History {
 
     public void redoCommand(Player p) {
         if (getUndoHistoryEntries().isEmpty()) {
-            p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
-                    "You didn't undo any structures yet. Use /gen undo to undo one. You can only redo the last structure.",
-                    NamedTextColor.RED
+            p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                    "You didn't undo any structures yet. Use /gen undo to undo one. You can only redo the last structure."
             )));
             return;
         }

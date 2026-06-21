@@ -7,8 +7,6 @@ import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorComponent;
 import net.buildtheearth.buildteamtools.modules.generator.model.Script;
 import net.buildtheearth.buildteamtools.modules.generator.model.Settings;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -296,17 +294,15 @@ public class RailScripts extends Script {
     }
 
     private void sendRailInfo(String message) {
-        sendRailMessage(Component.text(message, NamedTextColor.YELLOW));
+        if (!canContinue()) return;
+
+        getPlayer().sendMessage(ChatHelper.getStandardComponent(true, message));
     }
 
     private void sendRailError(String message) {
-        sendRailMessage(Component.text(message, NamedTextColor.RED));
-    }
-
-    private void sendRailMessage(Component message) {
         if (!canContinue()) return;
 
-        getPlayer().sendMessage(ChatHelper.PREFIX_COMPONENT.append(message));
+        getPlayer().sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(message)));
     }
 
     private void runOnMainThread(Runnable runnable) {

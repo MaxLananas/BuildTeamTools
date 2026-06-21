@@ -33,7 +33,9 @@ public class GeneratorCommand implements CommandExecutor, TabCompleter {
 
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String cmdLabel, String @NotNull [] args) {
         if (!(sender instanceof Player p)) {
-            sender.sendMessage("§cOnly players can execute this command.");
+            sender.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                    "Only players can execute this command."
+            )));
             return true;
         }
 
@@ -72,15 +74,22 @@ public class GeneratorCommand implements CommandExecutor, TabCompleter {
 
             case "history":
                 if (GeneratorModule.getInstance().getPlayerHistory(p).getHistoryEntries().isEmpty()) {
-                    p.sendMessage("§cYou didn't generate any structures yet. Use /gen to create one.");
+                    p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                            "You didn't generate any structures yet. Use /gen to create one."
+                    )));
                     return true;
                 }
 
                 ChatHelper.sendMessageBox(sender, "Generator History for " + p.getName(), () -> {
                     for (HistoryEntry history : GeneratorModule.getInstance().getPlayerHistory(p).getHistoryEntries()) {
                         long timeDifference = System.currentTimeMillis() - history.getTimeCreated();
-                        p.sendMessage("§e- " + history.getGeneratorType().name() + " §7-§e " + Utils.toDate(timeDifference) +
-                                " ago §7-§e " + history.getWorldEditCommandCount() + " Commands executed");
+                        p.sendMessage(ChatHelper.getStandardComponent(
+                                false,
+                                "- %s - %s ago - %s Commands executed",
+                                history.getGeneratorType().name(),
+                                Utils.toDate(timeDifference),
+                                history.getWorldEditCommandCount()
+                        ));
                     }
                 });
                 return true;

@@ -93,9 +93,9 @@ public abstract class GeneratorComponent extends ModuleComponent implements Wiki
     }
 
     public void sendError(Player p) {
-        p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
-                "There was an error while generating the " + generatorType.getName().toLowerCase() + ". Please contact the admins.",
-                NamedTextColor.RED
+        p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                "There was an error while generating the %s. Please contact the admins.",
+                generatorType.getName().toLowerCase()
         )));
     }
 

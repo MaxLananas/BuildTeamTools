@@ -9,8 +9,6 @@ import com.sk89q.worldedit.regions.Region;
 import net.buildtheearth.buildteamtools.modules.generator.GeneratorModule;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorComponent;
 import net.buildtheearth.buildteamtools.modules.generator.model.GeneratorType;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
@@ -36,9 +34,8 @@ public class Rail extends GeneratorComponent {
         if (isSupportedRailSelection(region))
             return true;
 
-        player.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
-                "Rail Generator supports cuboid, polygonal and convex WorldEdit selections.",
-                NamedTextColor.RED
+        player.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                "Rail Generator supports cuboid, polygonal and convex WorldEdit selections."
         )));
         player.closeInventory();
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0F, 1.0F);
@@ -67,9 +64,8 @@ public class Rail extends GeneratorComponent {
     }
 
     private void sendAlreadyGeneratingMessage(Player player) {
-        player.sendMessage(ChatHelper.PREFIX_COMPONENT.append(Component.text(
-                "Rail Generator is already running. Please wait until the current generation is finished.",
-                NamedTextColor.RED
+        player.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                "Rail Generator is already running. Please wait until the current generation is finished."
         )));
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0F, 1.0F);
     }

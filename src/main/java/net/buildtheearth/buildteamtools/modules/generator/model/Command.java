@@ -361,15 +361,11 @@ public class Command {
     }
 
     private void sendFailureActionBar() {
-        Component message = Component.text("Generator failed.", NamedTextColor.RED, TextDecoration.BOLD);
-        player.sendActionBar(message);
+        player.sendActionBar(ChatHelper.getErrorComponent("Generator failed."));
     }
 
     private void sendProgressActionBar(NamedTextColor color) {
-        player.sendActionBar(Component.text()
-                .append(Component.text("Generator Progress: ", color, TextDecoration.BOLD))
-                .append(Component.text(percentage + "%", NamedTextColor.GRAY))
-                .build());
+        player.sendActionBar(ChatHelper.getStandardComponent(false, "Generator Progress: %s", percentage + "%").color(color));
     }
 
     private void runInternalGeneratorCommand(String command) {
