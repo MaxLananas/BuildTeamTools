@@ -14,18 +14,18 @@ record RailLimits(
         int blockPlacementBatchSize
 ) {
 
-    private static final int DEFAULT_MAX_CONTROL_POINTS = 500;
-    private static final int DEFAULT_MAX_PATH_POINTS = 12_000;
-    private static final int DEFAULT_MAX_BLOCK_PLACEMENTS = 75_000;
-    private static final long DEFAULT_MAX_PREPARED_REGION_VOLUME = 750_000L;
-    private static final int DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH = 768;
-    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 500;
-    private static final int MAX_CONTROL_POINTS = 500;
-    private static final int MAX_PATH_POINTS = 25_000;
-    private static final int MAX_BLOCK_PLACEMENTS = 100_000;
-    private static final long MAX_PREPARED_REGION_VOLUME = 2_000_000L;
-    private static final int MAX_PREPARED_REGION_AXIS_LENGTH = 1_024;
-    private static final int MAX_BLOCK_PLACEMENT_BATCH_SIZE = 1_000;
+    private static final int DEFAULT_MAX_CONTROL_POINTS = 1_000;
+    private static final int DEFAULT_MAX_PATH_POINTS = 24_000;
+    private static final int DEFAULT_MAX_BLOCK_PLACEMENTS = 150_000;
+    private static final long DEFAULT_MAX_PREPARED_REGION_VOLUME = 1_500_000L;
+    private static final int DEFAULT_MAX_PREPARED_REGION_AXIS_LENGTH = 1_024;
+    private static final int DEFAULT_BLOCK_PLACEMENT_BATCH_SIZE = 750;
+    private static final int MAX_CONTROL_POINTS = 2_000;
+    private static final int MAX_PATH_POINTS = 75_000;
+    private static final int MAX_BLOCK_PLACEMENTS = 300_000;
+    private static final long MAX_PREPARED_REGION_VOLUME = 6_000_000L;
+    private static final int MAX_PREPARED_REGION_AXIS_LENGTH = 2_048;
+    private static final int MAX_BLOCK_PLACEMENT_BATCH_SIZE = 2_000;
 
     static RailLimits fromConfig() {
         FileConfiguration config = BuildTeamTools.getInstance().getConfig(ConfigUtil.GENERATOR);
