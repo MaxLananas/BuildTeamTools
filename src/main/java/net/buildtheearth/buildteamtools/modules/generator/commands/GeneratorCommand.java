@@ -65,7 +65,9 @@ public class GeneratorCommand implements CommandExecutor, TabCompleter {
                 return true;
 
             case "field":
-                p.sendMessage("§cThis generator has serious issues and is currently disabled.");
+                p.sendMessage(ChatHelper.PREFIX_COMPONENT.append(ChatHelper.getErrorComponent(
+                        "This generator has serious issues and is currently disabled."
+                )));
                 return true;
 
             case "history":

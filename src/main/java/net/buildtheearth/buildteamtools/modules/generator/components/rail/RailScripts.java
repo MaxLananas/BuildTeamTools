@@ -166,7 +166,7 @@ public class RailScripts extends Script {
         }
 
         sendRailInfo("Rail Generator queued " + railBlocks.size() + " block changes over "
-                + centerPath.size() + " path points. Watch the action bar for progress.");
+                + centerPath.size() + " path points.");
 
         preparationProgress.startStage(RAIL_BLOCK_BUILD_PROGRESS, QUEUE_OPERATIONS_PROGRESS, QUEUE_OPERATIONS_ESTIMATED_MILLIS);
         queueRailBlockPlacements(railBlocks);

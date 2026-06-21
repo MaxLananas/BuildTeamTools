@@ -7,18 +7,18 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
-final class RailPreparationProgress {
+final class RailPreparationProgress implements Runnable {
 
     private final Player player;
     private final long maxPercentage;
     private final long updateIntervalTicks;
-    private BukkitTask task;
+    private volatile BukkitTask task;
     private volatile long stageStartPercentage;
     private volatile long stageEndPercentage;
     private volatile long stageStartedAtMillis = System.currentTimeMillis();
     private volatile long stageEstimatedDurationMillis = 1L;
     private volatile long queuedPercentage = -1L;
-    private long lastSentPercentage = -1L;
+    private volatile long lastSentPercentage = -1L;
 
     RailPreparationProgress(Player player, long maxPercentage, long updateIntervalTicks) {
         this.player = player;
@@ -30,27 +30,25 @@ final class RailPreparationProgress {
         if (!canContinue())
             return;
 
-        runOnMainThread(() -> {
-            if (task != null)
-                return;
+        if (task != null)
+            return;
 
-            task = Bukkit.getScheduler().runTaskTimer(
-                    BuildTeamTools.getInstance(),
-                    this::sendEstimatedProgress,
-                    0L,
-                    updateIntervalTicks
-            );
-        });
+        task = Bukkit.getScheduler().runTaskTimerAsynchronously(
+                BuildTeamTools.getInstance(),
+                this,
+                0L,
+                updateIntervalTicks
+        );
     }
 
     void stop() {
-        runOnMainThread(() -> {
-            if (task == null)
-                return;
+        BukkitTask currentTask = task;
 
-            task.cancel();
-            task = null;
-        });
+        if (currentTask == null)
+            return;
+
+        currentTask.cancel();
+        task = null;
     }
 
     void startStage(long startPercentage, long endPercentage, long estimatedDurationMillis) {
@@ -96,7 +94,8 @@ final class RailPreparationProgress {
         return startPercentage + Math.round(progress * (endPercentage - startPercentage));
     }
 
-    private void sendEstimatedProgress() {
+    @Override
+    public void run() {
         if (!canContinue()) {
             stop();
             return;
@@ -120,18 +119,6 @@ final class RailPreparationProgress {
 
     private long clamp(long percentage) {
         return Math.max(0L, Math.min(maxPercentage, percentage));
-    }
-
-    private void runOnMainThread(Runnable runnable) {
-        if (!BuildTeamTools.getInstance().isEnabled())
-            return;
-
-        if (Bukkit.isPrimaryThread()) {
-            runnable.run();
-            return;
-        }
-
-        Bukkit.getScheduler().runTask(BuildTeamTools.getInstance(), runnable);
     }
 
     private boolean canContinue() {

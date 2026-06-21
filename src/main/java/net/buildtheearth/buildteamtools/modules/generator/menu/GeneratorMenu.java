@@ -244,19 +244,17 @@ public class GeneratorMenu extends AbstractMenu {
         }));
 
         getMenu().getSlot(FIELD_ITEM_SLOT).setClickHandler(((clickPlayer, clickInformation) -> {
-            if (clickInformation.getClickType().equals(ClickType.RIGHT)) {
-                sendMoreInformation(clickPlayer, GeneratorType.FIELD);
-            }
+            sendMoreInformation(clickPlayer, GeneratorType.FIELD);
         }));
     }
 
     private void sendMoreInformation(@NonNull Player clickPlayer, @NonNull GeneratorType generator) {
         String wikiPage = generator.getWikiPage();
-        Component documentationLink = Component.text("Open generator documentation: " + wikiPage, NamedTextColor.GRAY)
+        Component documentationLink = ChatHelper.getStandardComponent(true, "Open generator documentation: %s", wikiPage)
                 .clickEvent(ClickEvent.openUrl(wikiPage))
                 .hoverEvent(HoverEvent.showText(Component.text("Click to open this page", NamedTextColor.GRAY)));
 
-        clickPlayer.sendMessage(ChatHelper.PREFIX_COMPONENT.append(documentationLink));
+        clickPlayer.sendMessage(documentationLink);
     }
 
     @Override

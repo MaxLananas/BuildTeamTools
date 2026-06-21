@@ -22,4 +22,4 @@ disabled-modules:
 debug: false
 
 # NOTE: Do not change
-config-version: 1.5
+config-version: 1.4

@@ -1,10 +1,7 @@
 package net.buildtheearth.buildteamtools.modules.generator.model;
 
 import com.alpsbte.alpslib.utils.ChatHelper;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import lombok.experimental.UtilityClass;
 import net.buildtheearth.buildteamtools.BuildTeamTools;
 import net.buildtheearth.buildteamtools.modules.common.CommonModule;
@@ -57,12 +54,10 @@ public class GeneratorCollections {
             if (!myFile.exists())
                 return installGeneratorCollections(p, false);
 
-            ClipboardFormat format = ClipboardFormats.findByFile(myFile);
+            var format = ClipboardFormats.findByFile(myFile);
             boolean foundFile = false;
             if (format != null) {
-                try (InputStream inputStream = Files.newInputStream(myFile.toPath());
-                     ClipboardReader reader = format.getReader(inputStream);
-                     Clipboard ignored = reader.read()) {
+                try (var ignored = format.load(myFile)) {
                     foundFile = true;
                 }
             }
