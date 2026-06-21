@@ -87,8 +87,8 @@ public class WarpMenu extends AbstractPaginatedMenu {
         BuildTeam currentTeam = NetworkModule.getInstance().getBuildTeam();
         if (getMenuPlayer().hasPermission(Permissions.WARP_CREATE)
                 && currentTeam != null && currentTeam.equals(warpGroup.getBuildTeam()))
-            warps.add(new Warp(null, "%create-warp%", null, null, null, null, null, null,
-                    new GeographicalCoordinate(0, 0), 0, 0, 0, false));
+            warps.add(new Warp(warpGroup, "%create-warp%", null, null, null, null, null, null,
+                    new GeographicalCoordinate(0, 0), 0.0, 0.0f, 0.0f, false));
 
         return warps;
     }
@@ -99,9 +99,7 @@ public class WarpMenu extends AbstractPaginatedMenu {
 
         int slot = 0;
         for (Warp warp : warps) {
-            if (warp.getName().equals("%create-warp%")
-                    && getMenuPlayer().hasPermission(Permissions.WARP_CREATE)
-                    && slot == warps.size() - 1) {
+            if (isCreateWarpPlaceholder(warp, slot, warps.size())) {
                 getMenu().getSlot(slot).setItem(HeadFactory.head(HeadTexture.GREEN_PLUS, "§a§lCreate a new Warp",
                         ListUtil.createList("§8Click to create a new warp.")));
             } else {
@@ -124,9 +122,7 @@ public class WarpMenu extends AbstractPaginatedMenu {
             getMenu().getSlot(currentSlot).setClickHandler((clickPlayer, clickInformation) -> {
                 clickPlayer.closeInventory();
 
-                if (warp.getName().equals("%create-warp%")
-                        && getMenuPlayer().hasPermission(Permissions.WARP_CREATE)
-                        && currentSlot == warps.size() - 1) {
+                if (isCreateWarpPlaceholder(warp, currentSlot, warps.size())) {
                     WarpsComponent.createWarp(clickPlayer, warpGroup);
                     return;
                 }
@@ -140,5 +136,11 @@ public class WarpMenu extends AbstractPaginatedMenu {
             });
             slot++;
         }
+    }
+
+    private boolean isCreateWarpPlaceholder(@NotNull Warp warp, int slot, int totalSize) {
+        return warp.getName().equals("%create-warp%")
+                && getMenuPlayer().hasPermission(Permissions.WARP_CREATE)
+                && slot == totalSize - 1;
     }
 }
