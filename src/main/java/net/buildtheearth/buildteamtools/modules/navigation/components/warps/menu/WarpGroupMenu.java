@@ -28,8 +28,7 @@ import java.util.List;
 public class WarpGroupMenu extends AbstractPaginatedMenu {
 
     public static final int BACK_ITEM_SLOT = 27;
-
-    public static final int ALTERNATE_PLUS_SLOT = 35;
+    public static final int SWITCH_PAGE_ITEM_SLOT = 34;
 
     private final boolean hasBackItem;
     private final BuildTeam buildTeam;
@@ -41,7 +40,7 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
      *
      * @param menuPlayer  The player that is viewing the menu
      * @param buildTeam   The build team that the menu is for
-     * @param hasBackItem Whether the menu has a back item - only true on overrides or when country selector menu
+     * @param hasBackItem Whether the menu has a back item
      */
     public WarpGroupMenu(Player menuPlayer, BuildTeam buildTeam, boolean hasBackItem, boolean autoLoad) {
         super(4, 3, "Warp Menu", menuPlayer, autoLoad);
@@ -58,42 +57,51 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
     }
 
     @Override
-    protected void setMenuItemsAsync() {
-        if (hasBackItem) {
-            ChatHelper.logDebug("Setting back item for warp group menu");
+    protected void setPreviewItems() {
+        if (hasBackItem)
             setBackItem(BACK_ITEM_SLOT, backMenue);
-        }
+
+        List<?> source = getSource();
+        if (source.size() > getEffectiveMaxItems())
+            setSwitchPageItems(SWITCH_PAGE_ITEM_SLOT);
+        else
+            for (int i = -1; i < 2; i++)
+                getMenu().getSlot(SWITCH_PAGE_ITEM_SLOT + i).setItem(MenuItems.ITEM_BACKGROUND);
+
+        super.setPreviewItems();
     }
 
     @Override
+    protected void setMenuItemsAsync() {}
+
+    @Override
     protected void setItemClickEventsAsync() {
-        // No items need to be set here
+        if (getSource().size() > getEffectiveMaxItems())
+            setSwitchPageItemClickEvents(SWITCH_PAGE_ITEM_SLOT);
     }
 
     @Override
     protected void setPaginatedPreviewItems(@NotNull List<?> source) {
         List<WarpGroup> warpGroups = source.stream().map(l -> (WarpGroup) l).toList();
 
-        getMenu().getSlot(ALTERNATE_PLUS_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
+        getMenu().getSlot(getAlternativePlusSlot()).setItem(MenuItems.ITEM_BACKGROUND);
         recalculateAutoSlots(warpGroups);
 
-        // Create the country items
         for (WarpGroup warpGroup : warpGroups) {
-            getMenu().getSlot(getWarpGroupSlot(warpGroup)).setItem(warpGroup.getMaterialItem());
+            int slot = getWarpGroupSlot(warpGroup);
+            if (slot >= 0) getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
         }
 
-        // Create a create warp group item if the player has permission
         if (showPlusItem) {
-            getMenu().getSlot(ALTERNATE_PLUS_SLOT).setItem(
-                    HeadFactory.head(HeadTexture.GREEN_PLUS, "§a§lCreate a new Warp Group", ListUtil.createList("§8Click to create a new warp group."))
+            getMenu().getSlot(getAlternativePlusSlot()).setItem(
+                    HeadFactory.head(HeadTexture.GREEN_PLUS, "§a§lCreate a new Warp Group",
+                            ListUtil.createList("§8Click to create a new warp group."))
             );
         }
     }
 
     @Override
-    protected void setPaginatedMenuItemsAsync(List<?> source) {
-        // All Items set above in setPaginatedPreviewItems
-    }
+    protected void setPaginatedMenuItemsAsync(List<?> source) {}
 
     @Override
     protected Mask getMask() {
@@ -108,15 +116,18 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
 
     @Override
     protected List<?> getSource() {
-        // Get the warp groups in the build team sorted by name
         List<WarpGroup> warpGroups;
 
         String mode = BuildTeamTools.getInstance().getConfig(ConfigUtil.NAVIGATION)
                 .getString(ConfigPaths.Navigation.WARPS_GROUP_SORTING_MODE, "");
 
         if (mode.equalsIgnoreCase("name")) {
-            warpGroups = buildTeam.getWarpGroups().stream().sorted((warpGroup1, warpGroup2) -> warpGroup1.getName().compareToIgnoreCase(warpGroup2.getName())).toList();
-        } else warpGroups = new ArrayList<>(buildTeam.getWarpGroups());
+            warpGroups = buildTeam.getWarpGroups().stream()
+                    .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                    .toList();
+        } else {
+            warpGroups = new ArrayList<>(buildTeam.getWarpGroups());
+        }
 
         return warpGroups;
     }
@@ -125,15 +136,15 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
     protected void setPaginatedItemClickEventsAsync(@NotNull List<?> source) {
         List<WarpGroup> warpGroups = source.stream().map(l -> (WarpGroup) l).toList();
 
-        for (WarpGroup warpGroup : warpGroups) {
+        for (WarpGroup warpGroup : warpGroups)
             setClickEventForSlot(warpGroup);
-        }
     }
 
     protected void setClickEventForSlot(@NotNull WarpGroup warpGroup) {
-        final int _slot = getWarpGroupSlot(warpGroup);
+        final int slot = getWarpGroupSlot(warpGroup);
+        if (slot < 0) return;
 
-        getMenu().getSlot(_slot).setClickHandler((clickPlayer, clickInformation) -> {
+        getMenu().getSlot(slot).setClickHandler((clickPlayer, clickInformation) -> {
             clickPlayer.closeInventory();
 
             if (clickInformation.getClickType().isRightClick() && clickPlayer.hasPermission(Permissions.WARP_GROUP_EDIT))
@@ -142,8 +153,8 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
                 leftClickAction(clickPlayer, warpGroup);
         });
 
-        getMenu().getSlot(ALTERNATE_PLUS_SLOT).setClickHandler((clickPlayer, clickInformation)
-                -> NavigationModule.getInstance().getWarpsComponent().createWarpGroup(clickPlayer));
+        getMenu().getSlot(getAlternativePlusSlot()).setClickHandler((clickPlayer, clickInformation) ->
+                NavigationModule.getInstance().getWarpsComponent().createWarpGroup(clickPlayer));
     }
 
     protected void leftClickAction(Player clickPlayer, @NotNull WarpGroup warpGroup) {
@@ -155,6 +166,19 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
         if (s >= 0 && s <= 26) return s;
         int a = g.getInternalSlot();
         return a >= 0 && a <= 26 ? a : -1;
+    }
+
+    /** Returns the slot used for the "create warp group" plus button. */
+    private int getAlternativePlusSlot() {
+        return 35;
+    }
+
+    /**
+     * Returns the effective maximum number of warp groups that can fit on a single page,
+     * excluding the plus button slot.
+     */
+    private int getEffectiveMaxItems() {
+        return 27;
     }
 
     /**
@@ -170,22 +194,19 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
     private static int recalculateAutoSlots(@NotNull List<WarpGroup> warpGroups) {
         final int MAX = 27;
 
-        // 1) Calculate all free slots
         ArrayDeque<Integer> free = getFreeSlots(warpGroups, MAX);
 
-        // 2) Assign auto slots only where needed
         for (WarpGroup g : warpGroups) {
             int s = g.getSlot();
             if (s >= 0 && s < MAX) {
-                g.setInternalSlot(-1); // explicit slot → clear auto
+                g.setInternalSlot(-1);
             } else {
-                Integer next = free.pollFirst(); // next free, or null if none
+                Integer next = free.pollFirst();
                 g.setInternalSlot(next != null ? next : -1);
             }
         }
 
-        // 3) Return next free slot - mainly used for plus slot
-        Integer next = free.pollFirst(); // next free, or null if none
+        Integer next = free.pollFirst();
 
         if (BuildTeamTools.getInstance().isDebug() && BuildTeamTools.getInstance().getComponentLogger().isInfoEnabled()) {
             BuildTeamTools.getInstance().getComponentLogger().info("Free slot: {}.", free);
@@ -200,14 +221,12 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
     }
 
     private static @NotNull ArrayDeque<Integer> getFreeSlots(@NotNull List<WarpGroup> warpGroups, int max) {
-        // 1) Mark occupied (explicit) slots
         boolean[] taken = new boolean[max];
         for (WarpGroup g : warpGroups) {
             int s = g.getSlot();
             if (s >= 0 && s < max) taken[s] = true;
         }
 
-        // 2) Build the free-slot queue (ascending)
         ArrayDeque<Integer> free = new ArrayDeque<>();
         for (int i = 0; i < max; i++) {
             if (!taken[i]) free.add(i);
@@ -216,6 +235,5 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
         return free;
     }
 
-    private record WarpGropSlotDebug(String name, int slot, int internalSlot) {
-    }
+    private record WarpGropSlotDebug(String name, int slot, int internalSlot) {}
 }
