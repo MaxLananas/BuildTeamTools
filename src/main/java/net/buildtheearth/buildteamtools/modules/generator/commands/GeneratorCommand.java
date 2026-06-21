@@ -110,15 +110,15 @@ public class GeneratorCommand implements CommandExecutor, TabCompleter {
 
     public static void sendHelp(CommandSender sender) {
         ChatHelper.sendMessageBox(sender, "Generator Command", () -> {
-            sender.sendMessage("§eHouse Generator:§7 /gen house help");
-            sender.sendMessage("§eRoad Generator:§7 /gen road help");
-            sender.sendMessage("§eRail Generator:§7 /gen rail help");
-            sender.sendMessage("§eTree Generator:§7 /gen tree help");
-            sender.sendMessage("§eField Generator:§7 /gen field help");
-            sender.sendMessage("§7----------------------");
-            sender.sendMessage("§eGenerator History:§7 /gen history");
-            sender.sendMessage("§eUndo last command:§7 /gen undo");
-            sender.sendMessage("§eRedo last command:§7 /gen redo");
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "House Generator: %s", "/gen house help"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Road Generator: %s", "/gen road help"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Rail Generator: %s", "/gen rail help"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Tree Generator: %s", "/gen tree help"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Field Generator: %s", "/gen field help"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "----------------------"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Generator History: %s", "/gen history"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Undo last command: %s", "/gen undo"));
+            sender.sendMessage(ChatHelper.getStandardComponent(false, "Redo last command: %s", "/gen redo"));
         });
     }
 
