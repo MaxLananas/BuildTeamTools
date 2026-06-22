@@ -63,7 +63,6 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
         else
             getMenu().getSlot(BACK_ITEM_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
 
-        // Fill bottom bar
         for (int i = 28; i <= 35; i++)
             getMenu().getSlot(i).setItem(MenuItems.ITEM_BACKGROUND);
 
