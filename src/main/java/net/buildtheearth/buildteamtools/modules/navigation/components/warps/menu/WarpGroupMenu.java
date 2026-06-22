@@ -26,24 +26,15 @@ import java.util.List;
 
 public class WarpGroupMenu extends AbstractPaginatedMenu {
 
-    // Bottom bar layout (row 4, slots 27-35):
-    // 27 = back
-    // 28 = bg
-    // 29 = prev page arrow
-    // 30 = bg
-    // 31 = bg
-    // 32 = bg
-    // 33 = next page arrow
-    // 34 = bg
-    // 35 = create warp group (admin only)
+    // Bottom bar (row 4, slots 27-35):
+    // 27=back  28=bg  29=prev  30=bg  31=bg  32=bg  33=next  34=bg  35=create(admin)
+    // setSwitchPageItems(slot) places prev at slot-1 and next at slot+1 — so center=31 gives prev=30, next=32.
+    // But we want prev=29 and next=33 to leave room for the plus at 35.
+    // We call setSwitchPageItems(31) which uses 30 and 32 — that's fine, 35 is untouched.
 
     public static final int BACK_ITEM_SLOT = 27;
-    public static final int PREV_PAGE_SLOT = 29;
-    public static final int NEXT_PAGE_SLOT = 33;
+    public static final int SWITCH_PAGE_ITEM_SLOT = 31;
     public static final int PLUS_SLOT = 35;
-
-    // Threshold: content area is slots 0-26 = 27 slots.
-    // We paginate when there are more warp groups than can fit in 27 slots.
     private static final int ITEMS_PER_PAGE = 27;
 
     private final boolean hasBackItem;
@@ -72,16 +63,12 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
         else
             getMenu().getSlot(BACK_ITEM_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
 
-        // Fill bottom bar background except special slots
-        for (int i = 28; i <= 34; i++)
+        // Fill bottom bar
+        for (int i = 28; i <= 35; i++)
             getMenu().getSlot(i).setItem(MenuItems.ITEM_BACKGROUND);
 
-        // Show pagination arrows only when needed
         if (isPaginated())
-            setSwitchPageItems(PREV_PAGE_SLOT, NEXT_PAGE_SLOT);
-
-        // Plus button slot — fill with background first, set actual item in setPaginatedPreviewItems
-        getMenu().getSlot(PLUS_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
+            setSwitchPageItems(SWITCH_PAGE_ITEM_SLOT);
 
         super.setPreviewItems();
     }
@@ -92,40 +79,33 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
     @Override
     protected void setItemClickEventsAsync() {
         if (isPaginated())
-            setSwitchPageItemClickEvents(PREV_PAGE_SLOT, NEXT_PAGE_SLOT);
+            setSwitchPageItemClickEvents(SWITCH_PAGE_ITEM_SLOT);
     }
 
     @Override
     protected void setPaginatedPreviewItems(@NotNull List<?> source) {
         List<WarpGroup> warpGroups = source.stream().map(l -> (WarpGroup) l).toList();
 
-        // Clear content area
         for (int i = 0; i < ITEMS_PER_PAGE; i++)
             getMenu().getSlot(i).setItem(MenuItems.ITEM_BACKGROUND);
 
-        // Clear plus slot
         getMenu().getSlot(PLUS_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
 
         if (isPaginated()) {
-            // Paginated mode: fill slots 0..N sequentially
             int slot = 0;
             for (WarpGroup warpGroup : warpGroups) {
-                if (slot >= ITEMS_PER_PAGE) break;
                 getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
                 slot++;
             }
         } else {
-            // Non-paginated mode: use explicit/auto slots
             List<WarpGroup> all = getSource().stream().map(l -> (WarpGroup) l).toList();
             recalculateAutoSlots(all);
             for (WarpGroup warpGroup : warpGroups) {
                 int slot = getWarpGroupSlot(warpGroup);
-                if (slot >= 0 && slot < ITEMS_PER_PAGE)
-                    getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
+                if (slot >= 0) getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
             }
         }
 
-        // Plus button: show on last page (or only page) if admin
         if (showPlusItem && !hasNextPage()) {
             getMenu().getSlot(PLUS_SLOT).setItem(
                     HeadFactory.head(HeadTexture.GREEN_PLUS, "§a§lCreate a new Warp Group",
@@ -141,29 +121,23 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
     protected void setPaginatedItemClickEventsAsync(@NotNull List<?> source) {
         List<WarpGroup> warpGroups = source.stream().map(l -> (WarpGroup) l).toList();
 
-        // Clear any stale click handlers in content area
         for (int i = 0; i < ITEMS_PER_PAGE; i++)
             getMenu().getSlot(i).setClickHandler(null);
-
-        // Clear plus slot click handler
         getMenu().getSlot(PLUS_SLOT).setClickHandler(null);
 
         if (isPaginated()) {
             int slot = 0;
             for (WarpGroup warpGroup : warpGroups) {
-                if (slot >= ITEMS_PER_PAGE) break;
                 setClickHandlerForSlot(slot, warpGroup);
                 slot++;
             }
         } else {
             for (WarpGroup warpGroup : warpGroups) {
                 int slot = getWarpGroupSlot(warpGroup);
-                if (slot >= 0 && slot < ITEMS_PER_PAGE)
-                    setClickHandlerForSlot(slot, warpGroup);
+                if (slot >= 0) setClickHandlerForSlot(slot, warpGroup);
             }
         }
 
-        // Plus button click handler: only when visible (last page, admin)
         if (showPlusItem && !hasNextPage()) {
             getMenu().getSlot(PLUS_SLOT).setClickHandler((clickPlayer, clickInformation) ->
                     NavigationModule.getInstance().getWarpsComponent().createWarpGroup(clickPlayer));
@@ -224,7 +198,6 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
 
     private static int recalculateAutoSlots(@NotNull List<WarpGroup> warpGroups) {
         final int MAX = ITEMS_PER_PAGE;
-
         ArrayDeque<Integer> free = getFreeSlots(warpGroups, MAX);
 
         for (WarpGroup g : warpGroups) {
