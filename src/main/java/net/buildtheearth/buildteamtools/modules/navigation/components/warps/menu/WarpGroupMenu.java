@@ -81,36 +81,34 @@ public class WarpGroupMenu extends AbstractPaginatedMenu {
             setSwitchPageItemClickEvents(SWITCH_PAGE_ITEM_SLOT);
     }
 
-    @Override
-    protected void setPaginatedPreviewItems(@NotNull List<?> source) {
-        List<WarpGroup> warpGroups = source.stream().map(l -> (WarpGroup) l).toList();
+   @Override
+   protected void setPaginatedPreviewItems(@NotNull List<?> source) {
+     List<WarpGroup> warpGroups = source.stream().map(l -> (WarpGroup) l).toList();
 
-        getMenu().getSlot(PLUS_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
+     getMenu().getSlot(PLUS_SLOT).setItem(MenuItems.ITEM_BACKGROUND);
 
-        if (isPaginated(getSource())) {
-            // In paginated mode: display sequentially, slot system is irrelevant
-            int slot = 0;
-            for (WarpGroup warpGroup : warpGroups) {
-                getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
-                slot++;
-            }
-        } else {
-            // In fixed slot mode: use the slot system
-            recalculateAutoSlots(warpGroups);
-            for (WarpGroup warpGroup : warpGroups) {
-                int slot = getWarpGroupSlot(warpGroup);
-                if (slot >= 0) getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
-            }
+     if (isPaginated(getSource())) {
+        int slot = 0;
+        for (WarpGroup warpGroup : warpGroups) {
+            getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
+            slot++;
         }
-
-        if (showPlusItem) {
-            getMenu().getSlot(PLUS_SLOT).setItem(
-                    HeadFactory.head(HeadTexture.GREEN_PLUS, "§a§lCreate a new Warp Group",
-                            ListUtil.createList("§8Click to create a new warp group."))
-            );
+     } else {
+        recalculateAutoSlots(warpGroups);
+        for (WarpGroup warpGroup : warpGroups) {
+            int slot = getWarpGroupSlot(warpGroup);
+            if (slot >= 0) getMenu().getSlot(slot).setItem(warpGroup.getMaterialItem());
         }
-    }
+     }
 
+     // Only show the plus button on the last page
+     if (showPlusItem && !hasNextPage()) {
+        getMenu().getSlot(PLUS_SLOT).setItem(
+                HeadFactory.head(HeadTexture.GREEN_PLUS, "§a§lCreate a new Warp Group",
+                        ListUtil.createList("§8Click to create a new warp group."))
+        );
+     }
+  }
     @Override
     protected void setPaginatedMenuItemsAsync(List<?> source) {}
 
